@@ -1,0 +1,19 @@
+{
+  "name": "zepto_src_analysis",
+  "version": "1.0.0",
+  "description": "zepto source code analysis",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "fangbinwei",
+  "license": "ISC",
+  "dependencies": {
+    "zepto": "^1.2.0"
+  },
+  "devDependencies": {
+    "browser-sync": "^2.23.3",
+    "gulp": "^4.0.0",
+    "lambda-view": "^5.8.0"
+  }
+}
