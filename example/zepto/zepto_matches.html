@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+</head>
+<body>
+  <script>console.log('be')</script>
+ <div id="test-id">hello world</div> 
+ <script>
+   var emptyArray = []
+   var slice = emptyArray.slice
+   var zepto = {}
+   var simpleSelectorRE = /^[\w-]*$/
+   var tempParent = document.createElement('div')
+   zepto.qsa = function(element, selector){
+    var found,
+        maybeID = selector[0] == '#',
+        maybeClass = !maybeID && selector[0] == '.',
+        nameOnly = maybeID || maybeClass ? selector.slice(1) : selector, // Ensure that a 1 char tag name still gets checked
+    // simpleSelectorRE = /^[\w-]*$/, 注意 不会匹配含有空格的string
+        isSimple = simpleSelectorRE.test(nameOnly)
+        // return Array类型
+        // 根据Id
+    return (element.getElementById && isSimple && maybeID) ? // Safari DocumentFragment doesn't have getElementById
+      ( (found = element.getElementById(nameOnly)) ? [found] : [] ) :
+      // 1 element_node 9 document_node 11 document_fragment_node
+      (element.nodeType !== 1 && element.nodeType !== 9 && element.nodeType !== 11) ? [] :
+      slice.call(
+        isSimple && !maybeID && element.getElementsByClassName ? // DocumentFragment doesn't have getElementsByClassName/TagName
+        // 用className 或tagName
+          maybeClass ? element.getElementsByClassName(nameOnly) : // If it's simple, it could be a class
+          element.getElementsByTagName(selector) : // Or a tag
+          // 不是className 或tagName 由querySelectorAll来查找
+          element.querySelectorAll(selector) // Or it's not simple, and we need to query all
+      )
+    }
+    zepto.matches = function(element, selector) {
+      // if (!selector || !element || element.nodeType !== 1) return false
+      // var matchesSelector = element.matches || element.webkitMatchesSelector ||
+      //                       element.mozMatchesSelector || element.oMatchesSelector ||
+      //                       element.matchesSelector
+      // if (matchesSelector) return matchesSelector.call(element, selector)
+      // fall back to performing a selector:
+      var match, parent = element.parentNode, temp = !parent
+      if (temp) (parent = tempParent).appendChild(element)
+      // indexOf 只要不是负数, 说明match到了 
+      match = ~zepto.qsa(parent, selector).indexOf(element)
+      temp && tempParent.removeChild(element)
+      return match
+    }
+    var match = zepto.matches(document.getElementById('test-id'),'#test-id')
+    console.log('match', match)
+ </script>
+ <script>console.log('test')</script>
+</body>
+</html>

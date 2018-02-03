@@ -2,8 +2,17 @@
 //     (c) 2010-2016 Thomas Fuchs
 //     Zepto.js may be freely distributed under the MIT license.
 
+// 用IIFE 定义Zepto变量
 var Zepto = (function() {
-  var undefined, key, $, classList, emptyArray = [], concat = emptyArray.concat, filter = emptyArray.filter, slice = emptyArray.slice,
+  var undefined, 
+      key, 
+      $, 
+      classList, 
+      // 优化的好办法
+      emptyArray = [], 
+      concat = emptyArray.concat, 
+      filter = emptyArray.filter, 
+      slice = emptyArray.slice,
     document = window.document,
     elementDisplay = {}, classCache = {},
     cssNumber = { 'column-count': 1, 'columns': 1, 'font-weight': 1, 'line-height': 1,'opacity': 1, 'z-index': 1, 'zoom': 1 },
@@ -49,6 +58,8 @@ var Zepto = (function() {
     isArray = Array.isArray ||
       function(object){ return object instanceof Array }
 
+      /** Element.matches作兼容 如果元素被指定的选择器字符串选择，Element.matches()  
+       方法返回true; 否则返回false。**/
   zepto.matches = function(element, selector) {
     if (!selector || !element || element.nodeType !== 1) return false
     var matchesSelector = element.matches || element.webkitMatchesSelector ||
@@ -58,6 +69,7 @@ var Zepto = (function() {
     // fall back to performing a selector:
     var match, parent = element.parentNode, temp = !parent
     if (temp) (parent = tempParent).appendChild(element)
+    // indexOf 只要不是负数, 说明match到了 
     match = ~zepto.qsa(parent, selector).indexOf(element)
     temp && tempParent.removeChild(element)
     return match
@@ -229,6 +241,8 @@ var Zepto = (function() {
   // function just call `$.zepto.init, which makes the implementation
   // details of selecting nodes and creating Zepto collections
   // patchable in plugins.
+
+  // $() 将dom转换为Zepto对象
   $ = function(selector, context){
     return zepto.init(selector, context)
   }
@@ -260,19 +274,26 @@ var Zepto = (function() {
   // `$.zepto.qsa` is Zepto's CSS selector implementation which
   // uses `document.querySelectorAll` and optimizes for some special cases, like `#id`.
   // This method can be overridden in plugins.
+  // 优化后的querySelectorAll
   zepto.qsa = function(element, selector){
     var found,
         maybeID = selector[0] == '#',
         maybeClass = !maybeID && selector[0] == '.',
         nameOnly = maybeID || maybeClass ? selector.slice(1) : selector, // Ensure that a 1 char tag name still gets checked
+    // simpleSelectorRE = /^[\w-]*$/, 注意 不会匹配含有空格的string
         isSimple = simpleSelectorRE.test(nameOnly)
+        // return Array类型
+        // 根据Id
     return (element.getElementById && isSimple && maybeID) ? // Safari DocumentFragment doesn't have getElementById
       ( (found = element.getElementById(nameOnly)) ? [found] : [] ) :
+      // 1 element_node 9 document_node 11 document_fragment_node
       (element.nodeType !== 1 && element.nodeType !== 9 && element.nodeType !== 11) ? [] :
       slice.call(
         isSimple && !maybeID && element.getElementsByClassName ? // DocumentFragment doesn't have getElementsByClassName/TagName
+        // 用className 或tagName
           maybeClass ? element.getElementsByClassName(nameOnly) : // If it's simple, it could be a class
           element.getElementsByTagName(selector) : // Or a tag
+          // 不是className 或tagName 由querySelectorAll来查找
           element.querySelectorAll(selector) // Or it's not simple, and we need to query all
       )
   }
