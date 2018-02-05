@@ -57,6 +57,7 @@ var Zepto = (function() {
     },
     isArray = Array.isArray ||
       function(object){ return object instanceof Array }
+      // function(object) { return Object.prototype.toString.call(object) === '[object Array]'}
 
       /** Element.matches作兼容 如果元素被指定的选择器字符串选择，Element.matches()  
        方法返回true; 否则返回false。**/
@@ -70,55 +71,84 @@ var Zepto = (function() {
     var match, parent = element.parentNode, temp = !parent
     if (temp) (parent = tempParent).appendChild(element)
     // indexOf 只要不是负数, 说明match到了 
+    // ~取反 将值取负数再减1 -1变为0 存在时,返回一个非0的值(即转化为true)
     match = ~zepto.qsa(parent, selector).indexOf(element)
     temp && tempParent.removeChild(element)
     return match
   }
 
+  // 见$.each("Boolean Number String Function Array Date RegExp Object Error".split(" "),
   function type(obj) {
+    // null or undefined
     return obj == null ? String(obj) :
+    // class2type = {},
+    // toString = class2type.toString,
       class2type[toString.call(obj)] || "object"
   }
 
   function isFunction(value) { return type(value) == "function" }
+  // window == window.window
   function isWindow(obj)     { return obj != null && obj == obj.window }
+  // document.nodeType 9
   function isDocument(obj)   { return obj != null && obj.nodeType == obj.DOCUMENT_NODE }
   function isObject(obj)     { return type(obj) == "object" }
   function isPlainObject(obj) {
+    // 对于通过字面量定义的对象和new Object的对象 等常规方法构建的对象 返回true，new Object时传参数(Number Boolean String)的返回false
+    // 参考 http://snandy.iteye.com/blog/663245
     return isObject(obj) && !isWindow(obj) && Object.getPrototypeOf(obj) == Object.prototype
   }
 
+  // 类数组
   function likeArray(obj) {
     var length = !!obj && 'length' in obj && obj.length,
       type = $.type(obj)
 
     return 'function' != type && !isWindow(obj) && (
+      // array类型 或 length 为0
       'array' == type || length === 0 ||
+      // length 不为0的情况
         (typeof length == 'number' && length > 0 && (length - 1) in obj)
     )
   }
 
+  // 去除数组中 null 或undefined
   function compact(array) { return filter.call(array, function(item){ return item != null }) }
+  // 得到一个数组扁平化的副本 [1,[2,3],[4,[5,6]]] => [ 1, 2, 3, 4, [ 5, 6 ] ]
+  // $.fn.concat : emptyArray.concat
   function flatten(array) { return array.length > 0 ? $.fn.concat.apply([], array) : array }
+  // 驼峰化, 将background-color => backgroundColor
   camelize = function(str){ return str.replace(/-+(.)?/g, function(match, chr){ return chr ? chr.toUpperCase() : '' }) }
+  // 将驼峰式变为 连字符-写法
   function dasherize(str) {
+    // aA1AExample::Before => a-a1-a-example/before 
+    // :: => /
     return str.replace(/::/g, '/')
+    // AAa => A_Aa
            .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+           // 1A => 1_A  aA => a_A
            .replace(/([a-z\d])([A-Z])/g, '$1_$2')
            .replace(/_/g, '-')
            .toLowerCase()
   }
+  // 数组去重 ,indexOf(item) 和index不同说明前面出现过
   uniq = function(array){ return filter.call(array, function(item, idx){ return array.indexOf(item) == idx }) }
 
+  // 用于保存className的正则表达式(主要为了匹配空格), 在添加 删除 class时用到 
+  // 较新的浏览器实现了 Element.classList.add/remove/toggle/contains
+  // 感觉写法有点类似单例
   function classRE(name) {
     return name in classCache ?
       classCache[name] : (classCache[name] = new RegExp('(^|\\s)' + name + '(\\s|$)'))
   }
 
+  // 大致判断是否要加px
   function maybeAddPx(name, value) {
+    // 若在cssNumber中, 不需要加px 否则可能要加px
     return (typeof value == "number" && !cssNumber[dasherize(name)]) ? value + "px" : value
   }
 
+  // 获取默认的display  在隐藏/显示元素的动画那部分会用到
+  // 单例
   function defaultDisplay(nodeName) {
     var element, display
     if (!elementDisplay[nodeName]) {
@@ -132,9 +162,11 @@ var Zepto = (function() {
     return elementDisplay[nodeName]
   }
 
+  // 对ParentNode.children 作兼容 polyfill
   function children(element) {
     return 'children' in element ?
       slice.call(element.children) :
+      // nodeType 1 => ELEMENT_NODE
       $.map(element.childNodes, function(node){ if (node.nodeType == 1) return node })
   }
 
@@ -386,6 +418,8 @@ var Zepto = (function() {
   $.expr = { }
   $.noop = function() {}
 
+  // 对元素进行map操作, callback return为 null 或undefined 会被忽略, 返回经过扁平化的数组
+  // callback(item, index)
   $.map = function(elements, callback){
     var value, values = [], i, key
     if (likeArray(elements))
@@ -401,10 +435,13 @@ var Zepto = (function() {
     return flatten(values)
   }
 
+  // 对每一项运行callback, 如果callback返回false, 则提前结束迭代
+  // callback(index, item)反人类
   $.each = function(elements, callback){
     var i, key
     if (likeArray(elements)) {
       for (i = 0; i < elements.length; i++)
+      // 注意 使用了call, 遍历dom的时候会很有用
         if (callback.call(elements[i], i, elements[i]) === false) return elements
     } else {
       for (key in elements)
@@ -421,6 +458,7 @@ var Zepto = (function() {
   if (window.JSON) $.parseJSON = JSON.parse
 
   // Populate the class2type map
+  // 配合type函数使用 映射class2type
   $.each("Boolean Number String Function Array Date RegExp Object Error".split(" "), function(i, name) {
     class2type[ "[object " + name + "]" ] = name.toLowerCase()
   })
