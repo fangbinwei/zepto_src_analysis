@@ -4,12 +4,12 @@ let browserSync = require('browser-sync').create()
 function startBrowser (done) {
   browserSync.init({
     server: {
-      baseDir: "./example",
+      baseDir: "./",
       directory: true
     },
     notify: false
   });
-  gulp.watch(['example/*/*.html']).on('change', browserSync.reload)
+  gulp.watch(['example/**/*.html']).on('change', browserSync.reload)
   done()
 }
 startBrowser.description = 'start a browser-sync'
