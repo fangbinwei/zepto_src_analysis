@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+</head>
+<body>
+  <div class="container first-container">
+    <div class="inner">1</div>
+    <div class="inner">2</div>
+    <div class="inner">3</div>
+    <div class="inner">4</div>
+    <div class="inner">5</div>
+  </div>
+  <div class="container">
+    <div class="inner">part2 6</div>
+  </div>
+</body>
+<script src="../../src/zepto.js"></script>
+<script>
+  let inner = $('.inner');
+  let container = $('.container');
+  let firstContainer = $('.first-container');
+  let result = container.find(inner);
+  let resultFirstContainer = firstContainer.find(inner);
+  console.log('result', result);
+  console.log('resultFirstContainer', resultFirstContainer);
+</script>
+</html>
