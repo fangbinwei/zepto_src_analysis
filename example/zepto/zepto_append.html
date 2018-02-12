@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+</head>
+<body>
+  <div id="pre">pre content</div>
+  <ul></ul>
+  <ul></ul>
+  <div id="div1">old content</div>
+  
+  <script src="../../src/zepto.js"></script>
+  <script>
+    var divPre = document.getElementById('pre')
+    // ['<li></li>'] 数组中不能使用没有Content的标签 会有bug
+    $('ul').append('<li>new list item</li>', '<li></li>', ['<li>2</li>'], $(divPre))
+    // $('#div1').html(function (index, old) {
+    //   return `<div>${old} + new div</div>`
+    // })
+    $(document.body).append('<script>alert(1)<\/script>')
+
+    var divScript = document.createElement('div');
+    divScript.innerHTML = `<script>alert('not document.createElement('script')');<\/script>`;
+    document.body.insertBefore(divScript.childNodes[0], null);
+
+    var script = document.createElement('script');
+    script.text = `alert('document.createElement("script")')`;
+    document.body.insertBefore(script, null);
+
+    document.write(`<script>alert('document.write');<\/script>`);
+
+  </script>
+</body>
+</html>
