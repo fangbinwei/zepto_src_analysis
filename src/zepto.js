@@ -115,7 +115,7 @@ var Zepto = (function() {
   // 去除数组中 null 或undefined
   function compact(array) { return filter.call(array, function(item){ return item != null }) }
   // 得到一个数组扁平化的副本 [1,[2,3],[4,[5,6]]] => [ 1, 2, 3, 4, [ 5, 6 ] ]
-  // $.fn.concat : emptyArray.concat
+  // $.fn.concat : emptyArray.concat 注意: flatten 类似slice能将类数组转换为数组
   function flatten(array) { return array.length > 0 ? $.fn.concat.apply([], array) : array }
   // 驼峰化, 将background-color => backgroundColor
   camelize = function(str){ return str.replace(/-+(.)?/g, function(match, chr){ return chr ? chr.toUpperCase() : '' }) }
@@ -193,7 +193,10 @@ var Zepto = (function() {
     // A special case optimization for a single tag
     // singleTagRE = /^<(\w+)\s*\/?>(?:<\/\1>|)$/,
     // 匹配<img/> <p></p> 但不匹配<p>123</p> (?:x)非捕获括号,element 没有content则直接通过createElement创建
+    // 这样写会造成$.fn.append方法 会有bug
     if (singleTagRE.test(html)) dom = $(document.createElement(RegExp.$1))
+    // 个人觉得似乎这样写更好
+    // if (singleTagRE.test(html)) dom = document.createElement(RegExp.$1)
 
     if (!dom) {
     // tagExpanderRE = /<(?!area|br|col|embed|hr|img|input|link|meta|param)(([\w:]+)[^>]*)\/>/ig,
@@ -363,6 +366,7 @@ var Zepto = (function() {
     return selector == null ? $(nodes) : $(nodes).filter(selector)
   }
 
+  // 对documentElement.contains作兼容
   $.contains = document.documentElement.contains ?
     function(parent, node) {
       return parent !== node && parent.contains(node)
@@ -378,6 +382,7 @@ var Zepto = (function() {
   }
 
   function setAttribute(node, name, value) {
+    // value为null或undefined时 移除特性, 否则设置特性
     value == null ? node.removeAttribute(name) : node.setAttribute(name, value)
   }
 
@@ -461,6 +466,7 @@ var Zepto = (function() {
         value = callback(elements[key], key)
         if (value != null) values.push(value)
       }
+      console.log('values map', values, flatten(values))
     return flatten(values)
   }
 
@@ -552,8 +558,11 @@ var Zepto = (function() {
       return this
     },
     filter: function(selector){
+      // 利用两次not得到filter结果
       if (isFunction(selector)) return this.not(this.not(selector))
+      // return $(filter_array)
       return $(filter.call(this, function(element){
+        // return element 是否符合css selector true/false
         return zepto.matches(element, selector)
       }))
     },
@@ -563,16 +572,21 @@ var Zepto = (function() {
     is: function(selector){
       return this.length > 0 && zepto.matches(this[0], selector)
     },
+    // 与filter功能相反
     not: function(selector){
       var nodes=[]
       if (isFunction(selector) && selector.call !== undefined)
         this.each(function(idx){
+          // 函数返回为false则push
           if (!selector.call(this,idx)) nodes.push(this)
         })
       else {
         var excludes = typeof selector == 'string' ? this.filter(selector) :
+        // selector 为HTMLCollection : selector 为数组或Zepto对象
           (likeArray(selector) && isFunction(selector.item)) ? slice.call(selector) : $(selector)
+          // $.fn.forEach/indexOf
         this.forEach(function(el){
+          // 为-1 则push
           if (excludes.indexOf(el) < 0) nodes.push(el)
         })
       }
@@ -596,10 +610,15 @@ var Zepto = (function() {
       var el = this[this.length - 1]
       return el && !isObject(el) ? el : $(el)
     },
+    // 返回Zepto对象
     find: function(selector){
       var result, $this = this
       if (!selector) result = $()
+      // HTMLCollection Zepto对象等
+      // 如果给定Zepto对象集合或者元素，过滤它们，只有当它们在当前Zepto集合对象中时，才回被返回
       else if (typeof selector == 'object')
+      // $this.find({0: item1, 1: item2}// Zepto对象)
+      // 在$this集合中找有没有item1, 在$this集合中找有没有item2
         result = $(selector).filter(function(){
           var node = this
           return emptyArray.some.call($this, function(parent){
@@ -646,10 +665,13 @@ var Zepto = (function() {
         return filter.call(children(el.parentNode), function(child){ return child!==el })
       }), selector)
     },
+    // 把$()选中的element innerHTML都置为''
     empty: function(){
       return this.each(function(){ this.innerHTML = '' })
     },
     // `pluck` is borrowed from Prototype.js
+    // 返回一个数组
+    // $('body > *').pluck('nodeName') // => ["DIV", "SCRIPT"]
     pluck: function(property){
       return $.map(this, function(el){ return el[property] })
     },
@@ -714,12 +736,17 @@ var Zepto = (function() {
     },
     prev: function(selector){ return $(this.pluck('previousElementSibling')).filter(selector || '*') },
     next: function(selector){ return $(this.pluck('nextElementSibling')).filter(selector || '*') },
+    // html(content) content可以是append中描述的所有类型
+    // html字符串，dom节点，或者节点组成的数组 函数
     html: function(html){
       return 0 in arguments ?
+        // 设置innerHTML
         this.each(function(idx){
           var originHtml = this.innerHTML
+          // html(function(index, oldHtml){ ... })/ html(content)
           $(this).empty().append( funcArg(this, html, idx, originHtml) )
         }) :
+        // 读取innerHTML
         (0 in this ? this[0].innerHTML : null)
     },
     text: function(text){
@@ -733,10 +760,17 @@ var Zepto = (function() {
     attr: function(name, value){
       var result
       return (typeof name == 'string' && !(1 in arguments)) ?
+      // 没有value 获取特性
         (0 in this && this[0].nodeType == 1 && (result = this[0].getAttribute(name)) != null ? result : undefined) :
+        // 有value的情况 或name不是string(为object)
         this.each(function(idx){
+          // nodeType 1 ELEMENT_NODE
           if (this.nodeType !== 1) return
+        // attr({ name: value, name2: value2, ... })
           if (isObject(name)) for (key in name) setAttribute(this, key, name[key])
+          // attr(name, value) attr(name, function(index, oldValue){ ... })
+          // 如果value不是function(null or string), funcArg return value.
+          // value是function  funcArg return value.call(this, idx, this.getAttribute(name))
           else setAttribute(this, name, funcArg(this, value, idx, this.getAttribute(name)))
         })
     },
@@ -766,6 +800,8 @@ var Zepto = (function() {
 
       return data !== null ? deserializeValue(data) : undefined
     },
+    // 获取/设置元素的值
+    // val() val(value) value(function(index, oldValue){})
     val: function(value){
       if (0 in arguments) {
         if (value == null) value = ""
@@ -773,6 +809,7 @@ var Zepto = (function() {
           this.value = funcArg(this, value, idx, this.value)
         })
       } else {
+        // <select multiple></select>
         return this[0] && (this[0].multiple ?
            $(this[0]).find('option').filter(function(){ return this.selected }).pluck('value') :
            this[0].value)
@@ -802,11 +839,15 @@ var Zepto = (function() {
         height: Math.round(obj.height)
       }
     },
+    // 利用cssText/removeProperty设置css, 利用element.style[]/getComputedStyle().getPropertyValue 读取css
     css: function(property, value){
       if (arguments.length < 2) {
+        // 读取css属性
         var element = this[0]
+        // elem.css('background-color') 
         if (typeof property == 'string') {
           if (!element) return
+          // 驼峰化, 获取style
           return element.style[camelize(property)] || getComputedStyle(element, '').getPropertyValue(property)
         } else if (isArray(property)) {
           if (!element) return
@@ -815,17 +856,20 @@ var Zepto = (function() {
           $.each(property, function(_, prop){
             props[prop] = (element.style[camelize(prop)] || computedStyle.getPropertyValue(prop))
           })
+          // 返回对象
           return props
         }
       }
 
       var css = ''
       if (type(property) == 'string') {
+        // value: null undefined ''
         if (!value && value !== 0)
           this.each(function(){ this.style.removeProperty(dasherize(property)) })
         else
           css = dasherize(property) + ":" + maybeAddPx(property, value)
       } else {
+        // css({ property: value, property2: value2, ... })
         for (key in property)
           if (!property[key] && property[key] !== 0)
             this.each(function(){ this.style.removeProperty(dasherize(key)) })
@@ -833,6 +877,7 @@ var Zepto = (function() {
             css += dasherize(key) + ':' + maybeAddPx(key, property[key]) + ';'
       }
 
+      // 追加css
       return this.each(function(){ this.style.cssText += ';' + css })
     },
     index: function(element){
@@ -949,6 +994,7 @@ var Zepto = (function() {
     }
   })
 
+  // 递归遍历node及其子节点, 节点交由fun函数处理
   function traverseNode(node, fun) {
     fun(node)
     for (var i = 0, len = node.childNodes.length; i < len; i++)
@@ -957,6 +1003,7 @@ var Zepto = (function() {
 
   // Generate the `after`, `prepend`, `before`, `append`,
   // `insertAfter`, `insertBefore`, `appendTo`, and `prependTo` methods.
+    // adjacencyOperators = [ 'after', 'prepend', 'before', 'append' ],
   adjacencyOperators.forEach(function(operator, operatorIndex) {
     var inside = operatorIndex % 2 //=> prepend, append
 
@@ -965,38 +1012,50 @@ var Zepto = (function() {
       var argType, nodes = $.map(arguments, function(arg) {
             var arr = []
             argType = type(arg)
+            console.log(arg, argType)
             if (argType == "array") {
               arg.forEach(function(el) {
+                // DOM node
                 if (el.nodeType !== undefined) return arr.push(el)
+                // Zepto对象
                 else if ($.zepto.isZ(el)) return arr = arr.concat(el.get())
+                // html string
+                // 这里需要注意 el不能是<p></p> 这种没有内容的标签,
+                // 否则zepto.fragment返回的是$()类型的, 不是Array [{}// Zepto对象], $.map return的flatten无法将数组中的类数组数组化
                 arr = arr.concat(zepto.fragment(el))
               })
               return arr
             }
+            // 这里arg可以是<p></p> 因为arg返回Zepto对象, 在$.map return 的flatten函数中数组化(类数组 => 数组)
             return argType == "object" || arg == null ?
               arg : zepto.fragment(arg)
           }),
           parent, copyByClone = this.length > 1
+          console.log('nodes', nodes, copyByClone)
       if (nodes.length < 1) return this
 
       return this.each(function(_, target){
         parent = inside ? target : target.parentNode
 
         // convert all methods to a "before" operation
-        target = operatorIndex == 0 ? target.nextSibling :
-                 operatorIndex == 1 ? target.firstChild :
-                 operatorIndex == 2 ? target :
-                 null
+        target = operatorIndex == 0 ? target.nextSibling : //after
+                 operatorIndex == 1 ? target.firstChild :  //prepend
+                 operatorIndex == 2 ? target :             // before
+                 null  //append
 
         var parentInDocument = $.contains(document.documentElement, parent)
 
         nodes.forEach(function(node){
+          console.log('node', node, 'node_parent', node.parentNode)
           if (copyByClone) node = node.cloneNode(true)
           else if (!parent) return $(node).remove()
 
+          // append: target null 插在结尾
           parent.insertBefore(node, target)
+          // 因为script标签是通过innerHTML插入的, 所以不会执行
           if (parentInDocument) traverseNode(node, function(el){
             if (el.nodeName != null && el.nodeName.toUpperCase() === 'SCRIPT' &&
+            // type 为'' 或JavaScript , 不存在外部脚本
                (!el.type || el.type === 'text/javascript') && !el.src){
               var target = el.ownerDocument ? el.ownerDocument.defaultView : window
               target['eval'].call(target, el.innerHTML)
@@ -1010,6 +1069,7 @@ var Zepto = (function() {
     // prepend  => prependTo
     // before   => insertBefore
     // append   => appendTo
+    // $('<li>first list item</li>').prependTo('ul') 相当于 prepend 主语和宾语交换
     $.fn[inside ? operator+'To' : 'insert'+(operatorIndex ? 'Before' : 'After')] = function(html){
       $(html)[operator](this)
       return this
