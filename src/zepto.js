@@ -410,6 +410,7 @@ var Zepto = (function() {
         ( value == "false" ? false :
           value == "null" ? null :
           +value + "" == value ? +value :
+          // 正则表达式匹配JSON 但是只是很粗略地匹配, 有可能出错 跳到catch
           /^[\[\{]/.test(value) ? $.parseJSON(value) :
           value )
         : value
@@ -466,7 +467,6 @@ var Zepto = (function() {
         value = callback(elements[key], key)
         if (value != null) values.push(value)
       }
-      console.log('values map', values, flatten(values))
     return flatten(values)
   }
 
@@ -755,6 +755,7 @@ var Zepto = (function() {
           var newText = funcArg(this, text, idx, this.textContent)
           this.textContent = newText == null ? '' : ''+newText
         }) :
+        // 获取每个元素的textContent
         (0 in this ? this.pluck('textContent').join("") : null)
     },
     attr: function(name, value){
@@ -792,10 +793,14 @@ var Zepto = (function() {
       return this.each(function(){ delete this[name] })
     },
     data: function(name, value){
+      // capitalRE = /([A-Z])/g,
+      // 大写字母转化  A=> -A 再全部转化为小写字母
       var attrName = 'data-' + name.replace(capitalRE, '-$1').toLowerCase()
 
       var data = (1 in arguments) ?
+      // set
         this.attr(attrName, value) :
+        // read
         this.attr(attrName)
 
       return data !== null ? deserializeValue(data) : undefined
@@ -815,22 +820,30 @@ var Zepto = (function() {
            this[0].value)
       }
     },
+    //到左边缘的距离 包括滚动条产生的距离 left right : getBoundClientRect() + pageXOffset
+    // 给定一个含有left和top属性对象时，使用这些值来对集合中每一个元素进行相对于document的定位
+    // 注意相对document定位 和其父级定位元素有关
     offset: function(coordinates){
       if (coordinates) return this.each(function(index){
         var $this = $(this),
             coords = funcArg(this, coordinates, index, $this.offset()),
             parentOffset = $this.offsetParent().offset(),
+            // 如果有父级定位元素, top left值根据其进行计算
             props = {
               top:  coords.top  - parentOffset.top,
               left: coords.left - parentOffset.left
             }
+            console.log('props', props)
 
         if ($this.css('position') == 'static') props['position'] = 'relative'
         $this.css(props)
       })
+      // length为0 return
       if (!this.length) return null
+      // 不为html 且不为html的子元素
       if (document.documentElement !== this[0] && !$.contains(document.documentElement, this[0]))
         return {top: 0, left: 0}
+        // obj.left/top 只是距离视口, 考虑有滚动条的情况 加上pageXOffset/Y
       var obj = this[0].getBoundingClientRect()
       return {
         left: obj.left + window.pageXOffset,
@@ -871,6 +884,7 @@ var Zepto = (function() {
       } else {
         // css({ property: value, property2: value2, ... })
         for (key in property)
+        // NaN等
           if (!property[key] && property[key] !== 0)
             this.each(function(){ this.style.removeProperty(dasherize(key)) })
           else
@@ -964,9 +978,14 @@ var Zepto = (function() {
         left: offset.left - parentOffset.left
       }
     },
+    // 找到第一个定位过的祖先元素，意味着它的css中的position 属性值为“relative”, “absolute” or “fixed”
+    // $('div')会返回所有div的定位元素的一个数组
     offsetParent: function() {
       return this.map(function(){
+        // 当元素的 style.display 设置为 "none" 时，offsetParent 返回 null
         var parent = this.offsetParent || document.body
+        // rootNodeRE = /^(?:body|html)$/i,
+        // 也许是做兼容, 因为offsetParent本来就是返回最近的定位元素
         while (parent && !rootNodeRE.test(parent.nodeName) && $(parent).css("position") == "static")
           parent = parent.offsetParent
         return parent
@@ -979,18 +998,29 @@ var Zepto = (function() {
 
   // Generate the `width` and `height` functions
   ;['width', 'height'].forEach(function(dimension){
+    // width => Width
     var dimensionProperty =
       dimension.replace(/./, function(m){ return m[0].toUpperCase() })
 
     $.fn[dimension] = function(value){
       var offset, el = this[0]
+      // window.innerWidth 包括侧边滚动条的宽度
       if (value === undefined) return isWindow(el) ? el['inner' + dimensionProperty] :
+       // document.documentElement.scrollWidth 不包括浏览器侧边滚动条的宽度
         isDocument(el) ? el.documentElement['scroll' + dimensionProperty] :
         (offset = this.offset()) && offset[dimension]
       else return this.each(function(idx){
+        // 设置全部的with
         el = $(this)
         el.css(dimension, funcArg(this, value, idx, el[dimension]()))
       })
+      // this.each
+    // each: function(callback){
+    //   emptyArray.every.call(this, function(el, idx){
+    //     return callback.call(el, idx, el) !== false
+    //   })
+    //   return this
+    // },
     }
   })
 
@@ -1012,7 +1042,6 @@ var Zepto = (function() {
       var argType, nodes = $.map(arguments, function(arg) {
             var arr = []
             argType = type(arg)
-            console.log(arg, argType)
             if (argType == "array") {
               arg.forEach(function(el) {
                 // DOM node
@@ -1031,7 +1060,6 @@ var Zepto = (function() {
               arg : zepto.fragment(arg)
           }),
           parent, copyByClone = this.length > 1
-          console.log('nodes', nodes, copyByClone)
       if (nodes.length < 1) return this
 
       return this.each(function(_, target){
@@ -1046,7 +1074,6 @@ var Zepto = (function() {
         var parentInDocument = $.contains(document.documentElement, parent)
 
         nodes.forEach(function(node){
-          console.log('node', node, 'node_parent', node.parentNode)
           if (copyByClone) node = node.cloneNode(true)
           else if (!parent) return $(node).remove()
 
