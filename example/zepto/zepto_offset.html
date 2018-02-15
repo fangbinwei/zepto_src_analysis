@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+  <style>
+    #div {
+      height: 200px;
+      width: 350px;
+      border: 2px solid coral;
+      position: absolute;
+      top: 0;
+      left: 120%;
+      overflow: auto;
+    }
+  </style>
+</head>
+<body>
+  <div>getBoundingClientRect <img src="https://mdn.mozillademos.org/files/15087/rect.png" alt="" srcset=""></div>
+  <div style="position:relative; padding:50px; background-color: red;">
+    <div id="div">hello</div>
+  </div>
+  <script src="../../src/zepto.js"></script>
+  <script src="../../src/event.js"></script>
+  <script>
+    let div = $('#div');
+    $(window).on('scroll',  function () {
+      let offset = div.offset();
+      let clientLeft = div[0].clientLeft;
+      let clientB = div[0].getBoundingClientRect();
+      let offsetLeft = div[0].offsetLeft;
+      div.html(JSON.stringify(offset) + `\n clientLeft: ${clientLeft}(borderleft)
+      \n boundingClientRect().left ${clientB.left}
+      \n div.offsetLeft ${offsetLeft}`)
+    })
+  </script>
+</body>
+</html>
