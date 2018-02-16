@@ -157,6 +157,7 @@ var Zepto = (function() {
       document.body.appendChild(element)
       display = getComputedStyle(element, '').getPropertyValue("display")
       element.parentNode.removeChild(element)
+      // style head 等标签默认display为none
       display == "none" && (display = "block")
       elementDisplay[nodeName] = display
     }
@@ -313,6 +314,7 @@ var Zepto = (function() {
 
   function extend(target, source, deep) {
     for (key in source)
+    // 深度拷贝 source[key]为数组或者纯粹的对象
       if (deep && (isPlainObject(source[key]) || isArray(source[key]))) {
         if (isPlainObject(source[key]) && !isPlainObject(target[key]))
           target[key] = {}
@@ -320,6 +322,8 @@ var Zepto = (function() {
           target[key] = []
         extend(target[key], source[key], deep)
       }
+      // 浅拷贝
+      // 注意!== 不排除null
       else if (source[key] !== undefined) target[key] = source[key]
   }
 
@@ -327,6 +331,7 @@ var Zepto = (function() {
   // objects to the `target` object.
   $.extend = function(target){
     var deep, args = slice.call(arguments, 1)
+    // $.extend(true, target, [source, ...]) 
     if (typeof target == 'boolean') {
       deep = target
       target = args.shift()
@@ -361,7 +366,7 @@ var Zepto = (function() {
           element.querySelectorAll(selector) // Or it's not simple, and we need to query all
       )
   }
-
+  // 将匹配指定选择器的元素从集合中过滤出来
   function filtered(nodes, selector) {
     return selector == null ? $(nodes) : $(nodes).filter(selector)
   }
@@ -387,11 +392,13 @@ var Zepto = (function() {
   }
 
   // access className property while respecting SVGAnimatedString
+  //对svg作了兼容
   function className(node, value){
     var klass = node.className || '',
         svg   = klass && klass.baseVal !== undefined
 
     if (value === undefined) return svg ? klass.baseVal : klass
+    // set value
     svg ? (klass.baseVal = value) : (node.className = value)
   }
 
@@ -425,24 +432,32 @@ var Zepto = (function() {
   $.isArray = isArray
   $.isPlainObject = isPlainObject
 
+  // 空对象 自有和继承中没有可枚举的属性
   $.isEmptyObject = function(obj) {
     var name
+    // in 自有和继承中 可枚举的
     for (name in obj) return false
     return true
   }
-
+  // 判断是否是数值
   $.isNumeric = function(val) {
     var num = Number(val), type = typeof val
+    // null undefined => false
+    // true false => false
     return val != null && type != 'boolean' &&
+    // '' => false
       (type != 'string' || val.length) &&
+      // 'a' => false NaN=> false
+      // Infinity => false
       !isNaN(num) && isFinite(num) || false
   }
-
+  // 返回指定元素在数组,类数组中的索引值
   $.inArray = function(elem, array, i){
     return emptyArray.indexOf.call(array, elem, i)
   }
 
   $.camelCase = camelize
+  // 去除头尾空格 [' a ',1]=>'a ,1'
   $.trim = function(str) {
     return str == null ? "" : String.prototype.trim.call(str)
   }
@@ -451,6 +466,7 @@ var Zepto = (function() {
   $.uuid = 0
   $.support = { }
   $.expr = { }
+  // 这个在需要传递回调函数作为参数，但是又不想在回调函数中做任何事情的时候会非常有用，这时，只需要传递一个空函数即可。
   $.noop = function() {}
 
   // 对元素进行map操作, callback return为 null 或undefined 会被忽略, 返回经过扁平化的数组
@@ -486,6 +502,8 @@ var Zepto = (function() {
     return elements
   }
 
+  // 数组的filter方法 
+  // 也可以对字符串用 [].filter.call('abcABC', function(item,index,arr){return item.charCodeAt(0)>=97}) // ['a','b','c']
   $.grep = function(elements, callback){
     return filter.call(elements, callback)
   }
