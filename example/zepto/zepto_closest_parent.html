@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+</head>
+<body class="body">
+  <div class="wrap">
+    <p class="inner">1 <span class="error-context">error context</span></p>
+    <p class="inner">2</p>
+    <p class="inner">3</p>
+    <p class="inner">4</p>
+    <p class="inner">5</p>
+  </div>
+  <p>not in wrap</p>
+  <script src="../../src/zepto.js"></script>
+  <script>
+    var selector = $('.inner').closest('.body')
+    var selectorContextE = $('.inner').closest('.body', document.getElementsByClassName('error-context')[0])
+    
+    var selectorContextR = $('.inner').closest('.body', document.getElementsByClassName('wrap')[0])
+    console.log('selector', selector, 'errorContext', selectorContextE, 'rightContext', selectorContextR)
+    var parents = $('.inner').parents()
+    console.log('parents', parents)
+    var parentsFilter = $('.inner').parents('.body')
+    console.log('parentsFilter', parentsFilter)
+    var parent = $('.inner').parent()
+    console.log('parent', parent)
+  </script>
+</body>
+</html>
