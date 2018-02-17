@@ -283,7 +283,7 @@ var Zepto = (function() {
       // normalize array if an array of nodes is given
       if (isArray(selector)) dom = compact(selector)
       // Wrap DOM nodes. 
-      // 包装DOM
+      // 包装单个DOM元素
       else if (isObject(selector))
         dom = [selector], selector = null
       // If it's a html fragment, create nodes from it
@@ -530,10 +530,15 @@ var Zepto = (function() {
     sort: emptyArray.sort,
     splice: emptyArray.splice,
     indexOf: emptyArray.indexOf,
+    // 添加元素到一个Zepto对象集合形成一个纯数组
+    // concat(nodes, [node2, ...])
+    // 不能concat: emptyArray.concat, 因为Zepto对象是一个类数组,直接使用数组的concat 会出现下面这种情况
+    // var a = { '0': 'a', '1': 'b', length: 2 } a.concat('c') => [ { '0': 'a', '1': 'b', length: 2 }, 'c' ]
     concat: function(){
       var i, value, args = []
       for (i = 0; i < arguments.length; i++) {
         value = arguments[i]
+        // isZ 则将Zepto对象转化为数组
         args[i] = zepto.isZ(value) ? value.toArray() : value
       }
       return concat.apply(zepto.isZ(this) ? this.toArray() : this, args)
@@ -545,6 +550,8 @@ var Zepto = (function() {
     map: function(fn){
       return $($.map(this, function(el, i){ return fn.call(el, i, el) }))
     },
+    // slice之所以没有像splice:emptyArray.splice一样, 是因为slice不修改原数组,会返回一个新的数组
+    // Zepto对象切片,返回Zepto对象
     slice: function(){
       return $(slice.apply(this, arguments))
     },
@@ -552,29 +559,39 @@ var Zepto = (function() {
     ready: function(callback){
       // need to check if document.body exists for IE as that browser reports
       // document ready when it hasn't yet created the body element
+    // dom ready 时的状态 readyRE = /complete|loaded|interactive/,
+    // 如果已经ready
       if (readyRE.test(document.readyState) && document.body) callback($)
+      // 否则监听事件DOMContentLoaded
       else document.addEventListener('DOMContentLoaded', function(){ callback($) }, false)
       return this
     },
+    // 获取指定索引值的元素, 不传参则返回所有, 返回DOM元素或者 包含DOM元素的数组
     get: function(idx){
       return idx === undefined ? slice.call(this) : this[idx >= 0 ? idx : idx + this.length]
     },
+    // Zepto对象转化为数组
     toArray: function(){ return this.get() },
+    // Zepto对象长度,即DOM length
     size: function(){
       return this.length
     },
+    // 删除当前集合中的元素
     remove: function(){
       return this.each(function(){
+        // this指 遍历的DOM元素el
         if (this.parentNode != null)
           this.parentNode.removeChild(this)
       })
     },
     each: function(callback){
       emptyArray.every.call(this, function(el, idx){
+        // callback返回false 则迭代停止
         return callback.call(el, idx, el) !== false
       })
       return this
     },
+    // 过滤对象集合，返回对象集合中满足css选择器的项
     filter: function(selector){
       // 利用两次not得到filter结果
       if (isFunction(selector)) return this.not(this.not(selector))
@@ -584,9 +601,12 @@ var Zepto = (function() {
         return zepto.matches(element, selector)
       }))
     },
+    // 添加元素到当前匹配的元素集合中
     add: function(selector,context){
+      // uniq数组去重 $()包装返回Zepto对象
       return $(uniq(this.concat($(selector,context))))
     },
+    // 判断当前元素集合中的第一个元素是否符css选择器
     is: function(selector){
       return this.length > 0 && zepto.matches(this[0], selector)
     },
@@ -601,6 +621,7 @@ var Zepto = (function() {
       else {
         var excludes = typeof selector == 'string' ? this.filter(selector) :
         // selector 为HTMLCollection : selector 为数组或Zepto对象
+        // 使用$(selector)是因为$()可以帮数组做一次compact操作? 感觉加不加$()操作,影响不大
           (likeArray(selector) && isFunction(selector.item)) ? slice.call(selector) : $(selector)
           // $.fn.forEach/indexOf
         this.forEach(function(el){
@@ -610,16 +631,28 @@ var Zepto = (function() {
       }
       return $(nodes)
     },
+    // 判断当前对象集合的子元素是否有符合选择器的元素，
+    //或者是否包含指定的DOM节点，如果有，则返回新的对象集合，
+    // 该对象过滤掉不含有选择器匹配元素或者不含有指定DOM节点的对象
+    // $('ol > li').has('a[href]')
+    //=> get only LI elements that contain links
     has: function(selector){
       return this.filter(function(){
         return isObject(selector) ?
+        // 指定DOM节点
           $.contains(this, selector) :
+          // 符合选择器的元素
+          // 不使用zepto.matches的原因,它只检测当前元素, 不检测其子元素
+          //=> get only LI elements that contain links
           $(this).find(selector).size()
       })
     },
+    // 获取指定索引的元素, 是Zepto对象
     eq: function(idx){
       return idx === -1 ? this.slice(idx) : this.slice(idx, + idx + 1)
     },
+    // 取第一个元素, ep也可以实现,但是效率好像更高?
+    // https://yeyuqiudeng.gitbooks.io/reading-zepto/content/src/%E8%AF%BBZepto%E6%BA%90%E7%A0%81%E4%B9%8B%E9%9B%86%E5%90%88%E5%85%83%E7%B4%A0%E6%9F%A5%E6%89%BE.html
     first: function(){
       var el = this[0]
       return el && !isObject(el) ? el : $(el)
@@ -649,35 +682,53 @@ var Zepto = (function() {
       else result = this.map(function(){ return zepto.qsa(this, selector) })
       return result
     },
+    // closest(selector, [context])  context应该是DOM元素 且context不应该是selector的子元素,否则等于context没用上去
     closest: function(selector, context){
       var nodes = [], collection = typeof selector == 'object' && $(selector)
+      //遍历节点
       this.each(function(_, node){
+        // collection.indexOf() 用于Zepto集合和element
+        // 向上查找
         while (node && !(collection ? collection.indexOf(node) >= 0 : zepto.matches(node, selector)))
           node = node !== context && !isDocument(node) && node.parentNode
+          // 加入nodes数组
         if (node && nodes.indexOf(node) < 0) nodes.push(node)
       })
       return $(nodes)
     },
+    // 获取对象集合每个元素所有的祖先元素。如果css选择器参数给出，过滤出符合条件的元素。return Zepto对象
     parents: function(selector){
       var ancestors = [], nodes = this
       while (nodes.length > 0)
+      {
+        // console.log('nodes', nodes)
         nodes = $.map(nodes, function(node){
+          // ancestors中不存在该parentNode, 则return node push到nodes中 在下次while循环中用
           if ((node = node.parentNode) && !isDocument(node) && ancestors.indexOf(node) < 0) {
             ancestors.push(node)
             return node
           }
         })
+      }
+        // 过滤出符合selector选择器的元素
       return filtered(ancestors, selector)
     },
+    //
     parent: function(selector){
+      // uniq数组去重, filtered返回Zepto对象
       return filtered(uniq(this.pluck('parentNode')), selector)
     },
+    // 获得每个匹配元素集合元素的直接子元素，如果给定selector，那么返回的结果中只包含符合css选择器的元素
     children: function(selector){
       return filtered(this.map(function(){ return children(this) }), selector)
     },
+    // 获得每个匹配元素集合元素的子元素，包括文字和注释节点
     contents: function() {
+      // this.map返回Zepto对象
+      // frameObject.contentDocument
       return this.map(function() { return this.contentDocument || slice.call(this.childNodes) })
     },
+    // 获取对象集合中所有元素的兄弟节点
     siblings: function(selector){
       return filtered(this.map(function(i, el){
         return filter.call(children(el.parentNode), function(child){ return child!==el })
@@ -693,53 +744,71 @@ var Zepto = (function() {
     pluck: function(property){
       return $.map(this, function(el){ return el[property] })
     },
+    // 恢复默认的display值
     show: function(){
       return this.each(function(){
+        // 内联样式 若为none,则设置为''
         this.style.display == "none" && (this.style.display = '')
         if (getComputedStyle(this, '').getPropertyValue("display") == "none")
           this.style.display = defaultDisplay(this.nodeName)
       })
     },
+    // 将所有集合元素替换为指定的内容 newContent ， newContent 的类型跟 before 的参数类型一样。
+    // replaceWidth 首先调用 before 将 newContent 插入到对应元素的前面，再将元素删除，这样就达到了替换的上的
     replaceWith: function(newContent){
       return this.before(newContent).remove()
     },
+    // 为每个元素都包裹指定structure
     wrap: function(structure){
       var func = isFunction(structure)
+      // $('input').wrap(function(index){
+      //   return '<span class=' + this.type + 'field />'
+      // })
       if (this[0] && !func)
         var dom   = $(structure).get(0),
+        // dom 存在parentNode 说明是已经在DOM中的节点, 要clone
             clone = dom.parentNode || this.length > 1
 
       return this.each(function(index){
+        // 每个元素调用 wrapAll
         $(this).wrapAll(
           func ? structure.call(this, index) :
             clone ? dom.cloneNode(true) : dom
         )
       })
     },
+    // 把元素包裹到structure中
     wrapAll: function(structure){
       if (this[0]) {
+        // structure插入到this[0]前面
         $(this[0]).before(structure = $(structure))
         var children
         // drill down to the inmost element
         while ((children = structure.children()).length) structure = children.first()
+        // 将this插入到structure中
         $(structure).append(this)
       }
       return this
     },
+    // 将每个元素中的内容包裹在一个单独的结构中
     wrapInner: function(structure){
       var func = isFunction(structure)
       return this.each(function(index){
         var self = $(this), contents = self.contents(),
             dom  = func ? structure.call(this, index) : structure
+            // 将contents包裹: self中插入structure
         contents.length ? contents.wrapAll(dom) : self.append(dom)
       })
     },
+    // 去掉每个元素的包裹,即父元素
+    // 通过将父元素替换为其children实现
     unwrap: function(){
       this.parent().each(function(){
         $(this).replaceWith($(this).children())
       })
       return this
     },
+    // 为集合每个元素创建副本
     clone: function(){
       return this.map(function(){ return this.cloneNode(true) })
     },
@@ -767,6 +836,9 @@ var Zepto = (function() {
         // 读取innerHTML
         (0 in this ? this[0].innerHTML : null)
     },
+    // textContent 会获取所有元素的文本，包括 script 和 style 的元素
+    // innerText 不会将隐藏元素的文本返回
+    // innerText 元素遇到 style 时，会重绘
     text: function(text){
       return 0 in arguments ?
         this.each(function(idx){
@@ -1091,6 +1163,7 @@ var Zepto = (function() {
 
         var parentInDocument = $.contains(document.documentElement, parent)
 
+        console.log('nodes', nodes, 'target', target)
         nodes.forEach(function(node){
           if (copyByClone) node = node.cloneNode(true)
           else if (!parent) return $(node).remove()
