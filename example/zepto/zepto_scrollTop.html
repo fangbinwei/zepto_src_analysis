@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+  <style>
+    .parent {
+      margin-left: 50px;
+      width: 400px;
+      height: 400px;
+      background-color: black;
+      margin-bottom: 20px;
+      overflow: auto;
+    }
+    .not-static {
+      position: relative;
+    }
+    .child {
+      width: 200px;
+      height: 800px;
+      background-color: coral;
+    }
+  </style>
+</head>
+<body>
+  <div class="parent">
+    <div class="child"></div>
+  </div>
+  <div class="parent not-static">
+    <div class="child"></div>
+  </div>
+  <script src="../../src/zepto.js"></script>
+  <script src="../../src/event.js"></script>
+  <script>
+    let child = $('.child')
+    let childOffsetParent = child.offsetParent()
+    child.html(function(index) {
+      return `offsetParent: \n ${childOffsetParent[index].nodeName} \n ${childOffsetParent[index].className}
+       \n left: ${$(childOffsetParent[index]).offset().left} \n top: ${$(childOffsetParent[index]).offset().top}`
+    })
+    child.offset({left: 10})
+    $('.parent').scrollTop(100)
+  </script>
+</body>
+</html>
