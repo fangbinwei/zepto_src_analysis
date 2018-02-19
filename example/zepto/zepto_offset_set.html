@@ -36,8 +36,8 @@
     let child = $('.child')
     let childOffsetParent = child.offsetParent()
     child.html(function(index) {
-      return `offsetParent: \n ${childOffsetParent[index].nodeName} \n ${childOffsetParent[index].className}
-       \n left: ${$(childOffsetParent[index]).offset().left} \n top: ${$(childOffsetParent[index]).offset().top}`
+      return `offsetParent: <br> ${childOffsetParent[index].nodeName} <br> ${childOffsetParent[index].className}
+       <br> left: ${$(childOffsetParent[index]).offset().left} <br> top: ${$(childOffsetParent[index]).offset().top}`
     })
     child.offset({left: 10})
   </script>
