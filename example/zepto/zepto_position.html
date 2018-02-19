@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+  <style>
+    body {
+      /* 可以防止margin collapsing */
+      border: 10px solid black;
+    }
+    .wrap {
+      overflow: auto;
+      width: 200px;
+      height: 100px;
+      background-color: coral;
+      padding: 100px;
+      margin: 100px;
+      /* box-sizing: border-box; */
+      border: 10px solid black;
+      /* 可以防止margin collapsing */
+      display: inline-block;
+    }
+    .main {
+      border: 10px solid red;
+      position: relative;
+    }
+  </style>
+</head>
+<body>
+  <div class="main">
+    <div class="wrap">
+      hello
+    </div>
+    <div class="wrap second">
+      hello
+    </div>
+  </div>
+  <script src="../../src/zepto.js"></script>
+  <script>
+    var wrap = $('.wrap.second');
+    var offset = wrap.offset()
+    var childMarginL = wrap.css('margin-left')
+    // offset距离为
+    var position = wrap.position()
+    var parentOffset = wrap.parent().offset()
+    var parentMarginL = wrap.parent().css('border-left-width')
+    wrap.html(`offset-left: ${offset.left} 
+    <br> margin-left: ${childMarginL}
+    <br> parent-offset-left: ${parentOffset.left} if body/html change to 0
+    <br> paretn-border-left-width: ${parentMarginL}
+    <br> position-left: offset.left(${offset.left}) - marginLeft(${childMarginL})
+    <br> - parentOffset.left(parentOffset.left+borderLeftWidth ${parentOffset.left} + ${parentMarginL})
+    <br> position-left: ${position.left} `)
+  </script>
+</body>
+</html>
