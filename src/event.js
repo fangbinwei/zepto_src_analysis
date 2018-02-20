@@ -9,15 +9,20 @@
       isString = function(obj){ return typeof obj == 'string' },
       handlers = {},
       specialEvents={},
+      // 判断是否在支持focusin事件
       focusinSupported = 'onfocusin' in window,
+      // focusin/out 支持冒泡 blur,focus不支持冒泡
       focus = { focus: 'focusin', blur: 'focusout' },
+      // mouseover/out 支持冒泡 mouseenter/leave不支持冒泡
       hover = { mouseenter: 'mouseover', mouseleave: 'mouseout' }
 
   specialEvents.click = specialEvents.mousedown = specialEvents.mouseup = specialEvents.mousemove = 'MouseEvents'
 
   function zid(element) {
+    // 若没有_zid属性, 则全局_zid赋值,之后自增1
     return element._zid || (element._zid = _zid++)
   }
+  // 查找缓存的handler
   function findHandlers(element, event, fn, selector) {
     event = parse(event)
     if (event.ns) var matcher = matcherFor(event.ns)
@@ -30,10 +35,13 @@
     })
   }
   function parse(event) {
+    // 命名空间 eventType.ns1.ns2
     var parts = ('' + event).split('.')
+    // e: eventType ns: 'ns1 ns2'
     return {e: parts[0], ns: parts.slice(1).sort().join(' ')}
   }
   function matcherFor(ns) {
+    // ns: 'ns1 ns2' return new RegExp('(?:^| )ns1 .* ?(?: |$)')
     return new RegExp('(?:^| )' + ns.replace(' ', ' .* ?') + '(?: |$)')
   }
 
@@ -43,18 +51,30 @@
       !!captureSetting
   }
 
+  // 将 focus/blur 转换成 focusin/focusout ，
+  // 将 mouseenter/mouseleave 转换成 mouseover/mouseout 事件
   function realEvent(type) {
     return hover[type] || (focusinSupported && focus[type]) || type
   }
 
+  // element 事件绑定的元素
+  // events 需要绑定的事件 可以是多个事件
+  // fn 事件的回调函数
+  // data 事件执行时,传递给事件对象的数据 e.data
+  // selector 事件绑定的选择器, 在$.fn.on中用于事件委托
+  // delegator 事件委托函数
+  // capture
   function add(element, events, fn, data, selector, delegator, capture){
     var id = zid(element), set = (handlers[id] || (handlers[id] = []))
     events.split(/\s/).forEach(function(event){
+      // Zepto 的ready ($.fn.ready)
       if (event == 'ready') return $(document).ready(fn)
       var handler   = parse(event)
+      // 缓存handler的一些属性
       handler.fn    = fn
       handler.sel   = selector
       // emulate mouseenter, mouseleave
+      // 用mouseover/out 模拟 mouseenter/leave
       if (handler.e in hover) fn = function(e){
         var related = e.relatedTarget
         if (!related || (related !== this && !$.contains(this, related)))
@@ -62,6 +82,7 @@
       }
       handler.del   = delegator
       var callback  = delegator || fn
+      // handler的代理函数
       handler.proxy = function(e){
         e = compatible(e)
         if (e.isImmediatePropagationStopped()) return
@@ -176,33 +197,44 @@
   $.fn.on = function(event, selector, data, callback, one){
     var autoRemove, delegator, $this = this
     if (event && !isString(event)) {
+      // event是以事件类型为键、以函数为值的对象的形式
       $.each(event, function(type, fn){
         $this.on(type, selector, data, fn, one)
       })
       return $this
     }
 
+    // 修正参数
+    // 没给定selector的情况, 参数位置调整一位
     if (!isString(selector) && !isFunction(callback) && callback !== false)
       callback = data, data = selector, selector = undefined
+    // data没有传递的情况,参数位置调整一位
     if (callback === undefined || data === false)
       callback = data, data = undefined
 
+      // callback为false 用returnFalse函数替代
     if (callback === false) callback = returnFalse
 
     return $this.each(function(_, element){
+      // 添加一个处理事件到元素，当第一次执行事件以后，该事件将自动解除绑定，保证处理函数在每个元素上最多执行一次
+      // autoRemove 执行后自动解除绑定
       if (one) autoRemove = function(e){
         remove(element, e.type, callback)
         return callback.apply(this, arguments)
       }
 
+      // selector存在,做事件代理
       if (selector) delegator = function(e){
+        // context为element, 从e.target 向上查找 css选择器(selector)
         var evt, match = $(e.target).closest(selector, element).get(0)
         if (match && match !== element) {
           evt = $.extend(createProxy(e), {currentTarget: match, liveFired: element})
+          // 若有autoRemove 则执行, 否则执行callback
           return (autoRemove || callback).apply(match, [evt].concat(slice.call(arguments, 1)))
         }
       }
 
+      // 遍历元素集合,每个元素都调用add方法,绑定事件
       add(element, event, callback, data, selector, delegator || autoRemove)
     })
   }
