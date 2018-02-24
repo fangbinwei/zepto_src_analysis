@@ -82,6 +82,16 @@
   // selector 事件绑定的选择器, 在$.fn.on中用于事件委托
   // delegator 事件委托函数
   // capture
+  /**
+   *  缓存handler到handlers, 利用addEventListener添加事件
+   * @param {*} element 
+   * @param {*} events 
+   * @param {*} fn 
+   * @param {*} data 
+   * @param {*} selector 
+   * @param {*} delegator 
+   * @param {*} capture 
+   */
   function add(element, events, fn, data, selector, delegator, capture){
     var id = zid(element), set = (handlers[id] || (handlers[id] = []))
     events.split(/\s/).forEach(function(event){
@@ -104,9 +114,11 @@
       var callback  = delegator || fn
       // handler的代理函数, 可以方便地对event对象进行修正扩展
       handler.proxy = function(e){
+        // console.log(1)
         e = compatible(e)
         // 如果isImmediate... 返回true  说明stopImmediatePropagation执行过, 直接退出函数
-        if (e.isImmediatePropagationStopped()) return
+        // 应该只是为了做兼容的样子, 更加保险
+      if (e.isImmediatePropagationStopped()) return
         // 扩展e对象,加入data属性
         e.data = data
         // trigger 的事件, 可能会有e._args
@@ -123,7 +135,14 @@
         element.addEventListener(realEvent(handler.e), handler.proxy, eventCapture(handler, capture))
     })
   }
-  // 删除事件
+  /**
+   * 删除handlers中的属性, 并用removeEventListener删除事件
+   * @param {*} element 
+   * @param {*} events 
+   * @param {*} fn 
+   * @param {*} selector 
+   * @param {*} capture 
+   */
   function remove(element, events, fn, selector, capture){
     var id = zid(element)
     ;(events || '').split(/\s/).forEach(function(event){
@@ -189,11 +208,13 @@
       }
 
       // 修正不同浏览器event对象的差异
+      // event是代理对象, source是原始事件对象
   function compatible(event, source) {
     // 有source 或 event.isDefaultPrevented 不存在, 则进入if语句
     if (source || !event.isDefaultPrevented) {
       source || (source = event)
 
+      // console.log('compatible',event,event.target, event.currentTarget)
       // 添加函数isDefaultPrevented()等
       $.each(eventMethods, function(name, predicate) {
         // name: 'preventDefault' predicate: 'isDefaultPrevented'
@@ -211,8 +232,8 @@
       // 对于不支持timeStamp的event, 用Date.now()初始该属性
       event.timeStamp || (event.timeStamp = Date.now())
 
-      // 暂时还有疑问 TODO
-      // function createProxy(event) 创建一个代理event, 在代理之前event可能已经执行了preventDefault()
+      // 想确定在compatible调用之前,event是否调用了preventDefault()
+      // 在delegate中createProxy会创建一个新的event对象, 所以会将isDefaultPrevented初始化, 所以需要通过defaultPrevented判断1遍
       // defaultPrevented返回一个布尔值,表明当前事件的默认动作是否被取消,也就是是否执行了 event.preventDefault()方法.
       if (source.defaultPrevented !== undefined ? source.defaultPrevented :
         // returnValue 默认为 true，如果阻止了浏览器的默认行为， returnValue 会变为 false
@@ -294,6 +315,9 @@
         // 注意这边match!==element, selector不能是选择element的
         if (match && match !== element) {
           // 对e进行扩展 记录currentTarget liveFired
+          // delegator会触发两次compatible, 1次是add中 handler.proxy中, 第二次是这里createProxy
+          // 这里currentTarget的定义和默认event.currentTarget不太一样, 默认currentTarget是在代理元素上, 即element
+          // console.log(2)
           evt = $.extend(createProxy(e), {currentTarget: match, liveFired: element})
           // 若有autoRemove 则执行, 否则执行callback
         // add()函数中,handler.proxy可能会传入除e以外的函数
@@ -334,6 +358,7 @@
       if (event.type in focus && typeof this[event.type] == "function") this[event.type]()
       // items in the collection might not be DOM elements
       else if ('dispatchEvent' in this) this.dispatchEvent(event)
+      // 以上两种方式会冒泡
       else $(this).triggerHandler(event, args)
     })
   }
@@ -349,8 +374,11 @@
       e._args = args
       e.target = element
       $.each(findHandlers(element, event.type || event), function(i, handler){
-        // 执行回调
+        // 执行回调, result若为false, 则阻止默认行为和冒泡
         result = handler.proxy(e)
+        // 因为是自己迭代,执行handler, 本身是不冒泡的,只需要阻止调用相同事件的其他handler, return false 跳出$.each循环
+        // 其实下面这句不加, 影响并不是很大, 因为handler.proxy()中 if (e.isImmediatePropagationStopped()) return
+        // 但是显然用下面这种方式更有效率
         if (e.isImmediatePropagationStopped()) return false
       })
     })
@@ -362,6 +390,7 @@
   'mousedown mouseup mousemove mouseover mouseout mouseenter mouseleave '+
   'change select keydown keypress keyup error').split(' ').forEach(function(event) {
     $.fn[event] = function(callback) {
+      // 有回调就绑定, 没回调就触发事件
       return (0 in arguments) ?
         this.bind(event, callback) :
         this.trigger(event)
