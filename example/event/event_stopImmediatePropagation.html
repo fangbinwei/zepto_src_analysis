@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+</head>
+<body>
+  <div>
+    <p>paragraph</p>
+    <script src="../../src/zepto.js"></script>
+    <script src="../../src/event.js"></script>
+    <script>
+      $('p').on('click', function(e) {
+        alert('我是p元素上被绑定的第1个handler')
+      })
+      $('p').on('click', function(e) {
+        alert('我是p元素上被绑定的第2个handler')
+        e.stopImmediatePropagation()
+        console.log('e.isImmediate', e.isImmediatePropagationStopped())
+      })
+      $('p').on('click', function(e) {
+        alert('我是p元素上被绑定的第3个handler')
+      })
+      $('p').triggerHandler('click')
+    </script>
+  </div>
+</body>
+</html>
