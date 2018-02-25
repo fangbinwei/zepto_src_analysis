@@ -25,7 +25,9 @@
   }
 
   // trigger an Ajax "global" event
+  // 触发ajax全局事件
   function triggerGlobal(settings, context, eventName, data) {
+    // setting.global true
     if (settings.global) return triggerAndReturn(context || document, eventName, data)
   }
 
@@ -33,51 +35,68 @@
   $.active = 0
 
   function ajaxStart(settings) {
+    // $.active 为0 触发
     if (settings.global && $.active++ === 0) triggerGlobal(settings, null, 'ajaxStart')
   }
   function ajaxStop(settings) {
+    // --$.active为0时触发
     if (settings.global && !(--$.active)) triggerGlobal(settings, null, 'ajaxStop')
   }
 
   // triggers an extra global event "ajaxBeforeSend" that's like "ajaxSend" but cancelable
   function ajaxBeforeSend(xhr, settings) {
     var context = settings.context
+    // beforeSend回调, 若beforeSend返回false 或 ajaxBeforeSend事件取消了默认行为,则ajax请求取消
     if (settings.beforeSend.call(context, xhr, settings) === false ||
         triggerGlobal(settings, context, 'ajaxBeforeSend', [xhr, settings]) === false)
+        // ajax请求被取消
       return false
 
+      // ajaxSend事件
     triggerGlobal(settings, context, 'ajaxSend', [xhr, settings])
   }
   function ajaxSuccess(data, xhr, settings, deferred) {
     var context = settings.context, status = 'success'
+    // success回调
     settings.success.call(context, data, status, xhr)
+    // 若deferred存在, 可以使用promise风格
     if (deferred) deferred.resolveWith(context, [data, status, xhr])
+    // ajaxSuccess 事件
     triggerGlobal(settings, context, 'ajaxSuccess', [xhr, settings, data])
+    // ajaxComplete事件
     ajaxComplete(status, xhr, settings)
   }
   // type: "timeout", "error", "abort", "parsererror"
   function ajaxError(error, type, xhr, settings, deferred) {
     var context = settings.context
+    // error callback
     settings.error.call(context, xhr, type, error)
     if (deferred) deferred.rejectWith(context, [xhr, type, error])
+    // ajaxError 事件
     triggerGlobal(settings, context, 'ajaxError', [xhr, settings, error || type])
+    // ajaxComplete 事件
     ajaxComplete(type, xhr, settings)
   }
   // status: "success", "notmodified", "error", "timeout", "abort", "parsererror"
   function ajaxComplete(status, xhr, settings) {
     var context = settings.context
+    // complete callback
     settings.complete.call(context, xhr, status)
     triggerGlobal(settings, context, 'ajaxComplete', [xhr, settings])
+    // 如果这是最后一个活跃着的Ajax请求, 触发ajaxStop 事件
     ajaxStop(settings)
   }
 
+  // 过滤请求成功后的响应数据
   function ajaxDataFilter(data, type, settings) {
+  // function empty() {}
     if (settings.dataFilter == empty) return data
     var context = settings.context
     return settings.dataFilter.call(context, data, type)
   }
 
   // Empty function, used as default callback
+  // 来作为回调函数配置的初始值。这样的好处是在执行回调函数时，不需要每次都判断回调函数是否存在。
   function empty() {}
 
   $.ajaxJSONP = function(options, deferred){
@@ -135,6 +154,7 @@
   $.ajaxSettings = {
     // Default type of request
     type: 'GET',
+    // 4个ajax回调函数
     // Callback that is executed before request
     beforeSend: empty,
     // Callback that is executed if the request succeeds
@@ -174,16 +194,24 @@
     dataFilter: empty
   }
 
+  // Content-Type 的值的形式如下 text/html; charset=utf-8
   function mimeToDataType(mime) {
+    // 'a,b,c'.split(',', 2) => ['a', 'b']
     if (mime) mime = mime.split(';', 2)[0]
+      // htmlType = 'text/html',
     return mime && ( mime == htmlType ? 'html' :
+      // jsonType = 'application/json',
       mime == jsonType ? 'json' :
+      // scriptTypeRE = /^(?:text|application)\/javascript/i,
       scriptTypeRE.test(mime) ? 'script' :
+      // xmlTypeRE = /^(?:text|application)\/xml/i,
       xmlTypeRE.test(mime) && 'xml' ) || 'text'
   }
 
   function appendQuery(url, query) {
     if (query == '') return url
+    // query不为空, 用&拼接url query 将&& 、 ?& ，&? 或 ?? 替换成 ?
+    // 拼接出来的 url 的形式如 url?key=value&key2=value
     return (url + '&' + query).replace(/[&?]{1,2}/, '?')
   }
 
@@ -310,8 +338,11 @@
   }
 
   // handle optional data/success arguments
+  // 用来格式化函数参数
   function parseArguments(url, data, success, dataType) {
+    // 缺data, 用undefined代替
     if ($.isFunction(data)) dataType = success, success = data, data = undefined
+    // 缺success
     if (!$.isFunction(success)) dataType = success, success = undefined
     return {
       url: url
@@ -355,15 +386,19 @@
 
   var escape = encodeURIComponent
 
+  // 参数序列化
   function serialize(params, obj, traditional, scope){
+    // obj为数组, 则array为true, 若为纯粹对象, hash为true
     var type, array = $.isArray(obj), hash = $.isPlainObject(obj)
     $.each(obj, function(key, value) {
       type = $.type(value)
+      // scope 是记录深层嵌套时的 key 值
       if (scope) key = traditional ? scope :
         scope + '[' + (hash || type == 'object' || type == 'array' ? key : '') + ']'
       // handle data in serializeArray() format
       if (!scope && array) params.add(value.name, value.value)
       // recurse into nested objects
+      // 递归嵌套对象
       else if (type == "array" || (!traditional && type == "object"))
         serialize(params, value, traditional, key)
       else params.add(key, value)
