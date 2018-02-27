@@ -100,50 +100,66 @@
   function empty() {}
 
   $.ajaxJSONP = function(options, deferred){
+    // options中没有type属性
     if (!('type' in options)) return $.ajax(options)
 
     var _callbackName = options.jsonpCallback,
       callbackName = ($.isFunction(_callbackName) ?
+      // 根据_callbackName定义callbackName, 如果_callbackName没有定义,根据jsonpID确定回调函数名
         _callbackName() : _callbackName) || ('Zepto' + (jsonpID++)),
       script = document.createElement('script'),
+      // 原始回调函数
       originalCallback = window[callbackName],
       responseData,
+      // 触发script error事件
       abort = function(errorType) {
         $(script).triggerHandler('error', errorType || 'abort')
       },
       xhr = { abort: abort }, abortTimeout
 
+      // 如果存在deferred对象, 在xhr基础上生成promise对象
     if (deferred) deferred.promise(xhr)
 
+    // 请求成功或失败
     $(script).on('load error', function(e, errorType){
+      // 请清除请求超时定时器, 避免触发超时错误
       clearTimeout(abortTimeout)
+      // 取消script绑定的事件, 并删除script标签, 数据保存在了responseData
       $(script).off().remove()
 
       if (e.type == 'error' || !responseData) {
+        // errorType 这里为abort 或error
         ajaxError(null, errorType || 'error', xhr, options, deferred)
       } else {
         ajaxSuccess(responseData[0], xhr, options, deferred)
       }
 
+      // 之前为了获取responseData,重写了window[callbackName], 现在改回来
       window[callbackName] = originalCallback
       if (responseData && $.isFunction(originalCallback))
+      // 执行jsonp回调
         originalCallback(responseData[0])
 
+        // 清除临时变量
       originalCallback = responseData = undefined
     })
 
     if (ajaxBeforeSend(xhr, options) === false) {
+      // 取消jsonp
       abort('abort')
       return xhr
     }
 
     window[callbackName] = function(){
+      // 重写window中的回调函数, 将参数保存在responseData
       responseData = arguments
     }
 
+    // 将=? 替换乘回调函数名
     script.src = options.url.replace(/\?(.+)=\?/, '?$1=' + callbackName)
     document.head.appendChild(script)
 
+    // 如果设定了超时时间, 触发error事件
     if (options.timeout > 0) abortTimeout = setTimeout(function(){
       abort('timeout')
     }, options.timeout)
@@ -219,40 +235,55 @@
   function serializeData(options) {
     if (options.processData && options.data && $.type(options.data) != "string")
       options.data = $.param(options.data, options.traditional)
+      // 为GET 或jsonp
     if (options.data && (!options.type || options.type.toUpperCase() == 'GET' || 'jsonp' == options.dataType))
       options.url = appendQuery(options.url, options.data), options.data = undefined
   }
 
   $.ajax = function(options){
+    // 获取可能存在options参数
     var settings = $.extend({}, options || {}),
         deferred = $.Deferred && $.Deferred(),
         urlAnchor, hashIndex
+        // 补充没有的setting参数
     for (key in $.ajaxSettings) if (settings[key] === undefined) settings[key] = $.ajaxSettings[key]
 
+    // ajaxStart event
     ajaxStart(settings)
 
     if (!settings.crossDomain) {
+      // 检测是否跨域
       urlAnchor = document.createElement('a')
       urlAnchor.href = settings.url
       // cleans up URL for .href (IE only), see https://github.com/madrobby/zepto/pull/1049
+      // ie 默认不会对链接 a 添加端口号，但是会对 window.location.href 添加端口号，如果端口号为 80 时，会出现不一致的情况
       urlAnchor.href = urlAnchor.href
+      // protocol http等 host localhost:3000 等
+      // 不相同,则是跨域
       settings.crossDomain = (originAnchor.protocol + '//' + originAnchor.host) !== (urlAnchor.protocol + '//' + urlAnchor.host)
     }
 
+    // 没有配置url, 则用当前地址作为请求地址
     if (!settings.url) settings.url = window.location.toString()
+    // 去掉hash
     if ((hashIndex = settings.url.indexOf('#')) > -1) settings.url = settings.url.slice(0, hashIndex)
+    // 序列化请求参数
     serializeData(settings)
 
+    // 判断是否jsonp
     var dataType = settings.dataType, hasPlaceholder = /\?.+=\?/.test(settings.url)
     if (hasPlaceholder) dataType = 'jsonp'
 
     if (settings.cache === false || (
+      // dataType 为 script 或者 jsonp 的情况下， cache 没有设置为 true 时
          (!options || options.cache !== true) &&
          ('script' == dataType || 'jsonp' == dataType)
         ))
+        // 请求的地址加个时间, 每次地址都不一样, 浏览器就不读缓存了
       settings.url = appendQuery(settings.url, '_=' + Date.now())
 
     if ('jsonp' == dataType) {
+      // 追加占位符
       if (!hasPlaceholder)
         settings.url = appendQuery(settings.url,
           settings.jsonp ? (settings.jsonp + '=?') : settings.jsonp === false ? '' : 'callback=?')
@@ -261,7 +292,9 @@
 
     var mime = settings.accepts[dataType],
         headers = { },
+        // 设置请求头
         setHeader = function(name, value) { headers[name.toLowerCase()] = [name, value] },
+        // 优先从url中匹配协议
         protocol = /^([\w-]+:)\/\//.test(settings.url) ? RegExp.$1 : window.location.protocol,
         xhr = settings.xhr(),
         nativeSetHeader = xhr.setRequestHeader,
@@ -269,6 +302,7 @@
 
     if (deferred) deferred.promise(xhr)
 
+    // 告诉服务端这是ajax请求
     if (!settings.crossDomain) setHeader('X-Requested-With', 'XMLHttpRequest')
     setHeader('Accept', mime || '*/*')
     if (mime = settings.mimeType || mime) {
@@ -282,6 +316,8 @@
     xhr.setRequestHeader = setHeader
 
     xhr.onreadystatechange = function(){
+      // readyState 4 请求完成 
+      // 3:下载中，部分响应数据已经可以使用 2:请求已经发送，可以获取响应头和状态 status 1:已经调用 open 方法 0:xhr 实例已经创建，但是还没有调用 open 方法
       if (xhr.readyState == 4) {
         xhr.onreadystatechange = empty
         clearTimeout(abortTimeout)
@@ -319,7 +355,9 @@
       return xhr
     }
 
+    // 同步还是异步
     var async = 'async' in settings ? settings.async : true
+    // 创建ajax请求
     xhr.open(settings.type, settings.url, async, settings.username, settings.password)
 
     if (settings.xhrFields) for (name in settings.xhrFields) xhr[name] = settings.xhrFields[name]
@@ -384,9 +422,13 @@
     return this
   }
 
+  // 用来编码参数
   var escape = encodeURIComponent
 
   // 参数序列化
+  // {p1: 'test1', p2: {nested: 'test2'}, p3: [1,[2]]}
+  // 不考虑encode traditional false => p1=test1&p2[nested]=test2&p3[1][]=2
+  // traditional true =>  p1=test1&p2=[object Object]&p3=1&p3=2
   function serialize(params, obj, traditional, scope){
     // obj为数组, 则array为true, 若为纯粹对象, hash为true
     var type, array = $.isArray(obj), hash = $.isPlainObject(obj)
@@ -396,6 +438,7 @@
       if (scope) key = traditional ? scope :
         scope + '[' + (hash || type == 'object' || type == 'array' ? key : '') + ']'
       // handle data in serializeArray() format
+      // serializeArray() 格式 from.js
       if (!scope && array) params.add(value.name, value.value)
       // recurse into nested objects
       // 递归嵌套对象
@@ -405,14 +448,19 @@
     })
   }
 
+  // $.param(object, [shallow])
   $.param = function(obj, traditional){
     var params = []
     params.add = function(key, value) {
+      // $.param({ id: function(){ return 1 + 2 } })
+      //=> "id=3"
       if ($.isFunction(value)) value = value()
       if (value == null) value = ""
+      // encodeURIComponent
       this.push(escape(key) + '=' + escape(value))
     }
     serialize(params, obj, traditional)
+    // %20空格替换为+ 
     return params.join('&').replace(/%20/g, '+')
   }
 })(Zepto)
