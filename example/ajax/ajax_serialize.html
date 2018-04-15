@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+</head>
+<body>
+  <div id="div1">
+    hello world!
+    <div>
+      <h1>context div1</h1>
+    </div>
+  </div>
+  <script src="/src/zepto.js"></script>
+  <script src="/src/event.js"></script>
+  <script src="/src/ajax.js"></script>
+  <script>
+    function appendQuery(url, query) {
+      if (query == '') return url
+      // query不为空, 用&拼接url query 将&,?,&&,?&,&? 或 ?? 替换成 ?
+      // 注意 如果url为/example?p=test 这种形式,? 替换为? url形式不变
+      // 拼接出来的 url 的形式如 url?key=value&key2=value
+      console.log('appendQuery', url + '&' + query)
+      // 注意正则表达式里没有/g 只替换第一个匹配到的字符
+      return (url + '&' + query).replace(/[&?]{1,2}/, '?')
+    }
+
+    // serialize payload and append it to the URL for GET requests
+    function serializeData(options) {
+      if (options.processData && options.data && $.type(options.data) != "string")
+        options.data = $.param(options.data, options.traditional)
+        // 为GET 或jsonp
+      if (options.data && (!options.type || options.type.toUpperCase() == 'GET' || 'jsonp' == options.dataType))
+        options.url = appendQuery(options.url, options.data), options.data = undefined
+    }
+    var options = {url: '/projects',
+                   processData: true,
+                   data: {p1: 'test1',
+                          p2: {nested: 'test2'},
+                          p3: [1,[2]]}
+                  }
+    serializeData(options)
+    console.log('options', options)
+    options.url = appendQuery(options.url, '_=' + Date.now())
+    console.log('options', options)
+  </script>
+</body>
+</html>

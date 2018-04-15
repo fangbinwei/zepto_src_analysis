@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+</head>
+<body>
+  <div id="div1">
+    hello world!
+    <div>
+      <h1>context div1</h1>
+    </div>
+  </div>
+  <script src="/src/zepto.js"></script>
+  <script src="/src/event.js"></script>
+  <script src="/src/ajax.js"></script>
+  <script>
+    $('#div1').on('testEvent', function(e) {
+      console.log('捕获testEvent', e)
+      e.preventDefault()
+    })
+    function triggerAndReturn(context, eventName, data) {
+      var event = $.Event(eventName)
+      console.log('event', event)
+      $(context).trigger(event, data)
+      return !event.isDefaultPrevented()
+    }
+    var trigger = triggerAndReturn('#div1', 'testEvent', 'dataString')
+    console.log('triggerAndReturn', trigger)
+  </script>
+</body>
+</html>
