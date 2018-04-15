@@ -35,18 +35,18 @@
   $.active = 0
 
   function ajaxStart(settings) {
-    // $.active 为0 触发
+    // $.active 为0 在document上触发
     if (settings.global && $.active++ === 0) triggerGlobal(settings, null, 'ajaxStart')
   }
   function ajaxStop(settings) {
-    // --$.active为0时触发
+    // --$.active为0时在document上触发
     if (settings.global && !(--$.active)) triggerGlobal(settings, null, 'ajaxStop')
   }
 
   // triggers an extra global event "ajaxBeforeSend" that's like "ajaxSend" but cancelable
   function ajaxBeforeSend(xhr, settings) {
     var context = settings.context
-    // beforeSend回调, 若beforeSend返回false 或 ajaxBeforeSend事件取消了默认行为,则ajax请求取消
+    // beforeSend回调, 若beforeSend返回false, ajaxBeforeSend取消 或 ajaxBeforeSend事件取消了默认行为,则ajaxSend取消
     if (settings.beforeSend.call(context, xhr, settings) === false ||
         triggerGlobal(settings, context, 'ajaxBeforeSend', [xhr, settings]) === false)
         // ajax请求被取消
@@ -155,7 +155,7 @@
       responseData = arguments
     }
 
-    // 将=? 替换乘回调函数名
+    // 将=? 替换为 =callbackName
     script.src = options.url.replace(/\?(.+)=\?/, '?$1=' + callbackName)
     document.head.appendChild(script)
 
@@ -274,8 +274,9 @@
     var dataType = settings.dataType, hasPlaceholder = /\?.+=\?/.test(settings.url)
     if (hasPlaceholder) dataType = 'jsonp'
 
+    // settings.cache为false时,说明options中设置了cache
     if (settings.cache === false || (
-      // dataType 为 script 或者 jsonp 的情况下， cache 没有设置为 true 时
+      // dataType 为 script 或者 jsonp 的情况下， options.cache 没有设置为 true 时
          (!options || options.cache !== true) &&
          ('script' == dataType || 'jsonp' == dataType)
         ))
@@ -283,13 +284,15 @@
       settings.url = appendQuery(settings.url, '_=' + Date.now())
 
     if ('jsonp' == dataType) {
-      // 追加占位符
+      // 追加jsonp占位符
       if (!hasPlaceholder)
         settings.url = appendQuery(settings.url,
+          // 若没设置settings.jsonp url的形式为 callback=? 在$.ajaxJSONP中替换为callback=callbackName
           settings.jsonp ? (settings.jsonp + '=?') : settings.jsonp === false ? '' : 'callback=?')
       return $.ajaxJSONP(settings, deferred)
     }
 
+    // 设置希望接收的响应报文主体类型
     var mime = settings.accepts[dataType],
         headers = { },
         // 设置请求头
@@ -297,6 +300,7 @@
         // 优先从url中匹配协议
         protocol = /^([\w-]+:)\/\//.test(settings.url) ? RegExp.$1 : window.location.protocol,
         xhr = settings.xhr(),
+        // 此方法必须在  open() 方法和 send()   之间调用。如果多次对同一个请求头赋值，只会生成一个合并了多个值的请求头。
         nativeSetHeader = xhr.setRequestHeader,
         abortTimeout
 
@@ -309,7 +313,9 @@
       if (mime.indexOf(',') > -1) mime = mime.split(',', 2)[0]
       xhr.overrideMimeType && xhr.overrideMimeType(mime)
     }
+    // 请求报文主体类型
     if (settings.contentType || (settings.contentType !== false && settings.data && settings.type.toUpperCase() != 'GET'))
+    // x-www-form-urlencoded 窗体数据被编码为名称/值对
       setHeader('Content-Type', settings.contentType || 'application/x-www-form-urlencoded')
 
     if (settings.headers) for (name in settings.headers) setHeader(name, settings.headers[name])
@@ -322,20 +328,31 @@
         xhr.onreadystatechange = empty
         clearTimeout(abortTimeout)
         var result, error = false
+        // TODO protocol file
         if ((xhr.status >= 200 && xhr.status < 300) || xhr.status == 304 || (xhr.status == 0 && protocol == 'file:')) {
           dataType = dataType || mimeToDataType(settings.mimeType || xhr.getResponseHeader('content-type'))
 
+          // 二进制数据
           if (xhr.responseType == 'arraybuffer' || xhr.responseType == 'blob')
             result = xhr.response
           else {
+            // DOMString
+            //  XMLHttpRequest.responseType 的值不是 text 或者空字符串，届时访问 XMLHttpRequest.responseType 将抛出 InvalidStateError 异常
             result = xhr.responseText
 
             try {
               // http://perfectionkills.com/global-eval-what-are-the-options/
               // sanitize response accordingly if data filter callback provided
               result = ajaxDataFilter(result, dataType, settings)
+              // var x = 'outer';
+              // (function() {
+              //   eval('console.log("direct call: " + x)'); 
+              //   (1,eval)('console.log("indirect call: " + x)'); 
+              // })();
+              // 确保eval的执行作用域是window 深入理解JavaScript p346
               if (dataType == 'script')    (1,eval)(result)
               else if (dataType == 'xml')  result = xhr.responseXML
+              // 内容为空 则返回null
               else if (dataType == 'json') result = blankRE.test(result) ? null : $.parseJSON(result)
             } catch (e) { error = e }
 
@@ -350,6 +367,7 @@
     }
 
     if (ajaxBeforeSend(xhr, settings) === false) {
+      // 终止请求
       xhr.abort()
       ajaxError(null, 'abort', xhr, settings, deferred)
       return xhr
@@ -362,6 +380,7 @@
 
     if (settings.xhrFields) for (name in settings.xhrFields) xhr[name] = settings.xhrFields[name]
 
+    // 设置请求报文首部
     for (name in headers) nativeSetHeader.apply(xhr, headers[name])
 
     if (settings.timeout > 0) abortTimeout = setTimeout(function(){
@@ -427,12 +446,13 @@
 
   // 参数序列化
   // {p1: 'test1', p2: {nested: 'test2'}, p3: [1,[2]]}
-  // 不考虑encode traditional false => p1=test1&p2[nested]=test2&p3[1][]=2
+  // 不考虑encode traditional false => p1=test1&p2[nested]=test2&p3[]=1&p3[1][]=2
   // traditional true =>  p1=test1&p2=[object Object]&p3=1&p3=2
   function serialize(params, obj, traditional, scope){
     // obj为数组, 则array为true, 若为纯粹对象, hash为true
     var type, array = $.isArray(obj), hash = $.isPlainObject(obj)
     $.each(obj, function(key, value) {
+      // console.log('key', key, 'value', value)
       type = $.type(value)
       // scope 是记录深层嵌套时的 key 值
       if (scope) key = traditional ? scope :
@@ -458,6 +478,7 @@
       if (value == null) value = ""
       // encodeURIComponent
       this.push(escape(key) + '=' + escape(value))
+      // this.push(key + '=' + value)
     }
     serialize(params, obj, traditional)
     // %20空格替换为+ 
