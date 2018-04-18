@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+</head>
+<body>
+  <h1>JSONP example</h1>
+  
+  <script src="/src/zepto.js"></script>
+  <script src="/src/event.js"></script>
+  <script src="/src/ajax.js"></script>
+  <!-- <script src="http://127.0.0.1:3000/?callback=copeJSONP"></script> -->
+  <script>
+    function copeJSONP(data) {
+      $('h1').html(data.name)
+    }
+  </script>
+  <script>
+    $(document).on('ajaxStart ajaxSend ajaxSuccess ajaxComplete ajaxStop ajaxError', function(e) {
+      console.log('ajaxEvent', e.type)
+    })
+    $(document).on('ajaxBeforeSend', function(e) {
+      console.log('ajaxEvent', e.type)
+      // e.preventDefault()
+    })
+    $.ajax({
+      url: 'http://127.0.0.1:3000/?callback=?',
+      dataType: 'jsonp',
+      jsonpCallback: 'copeJSONP',
+      cache: false,
+      beforeSend: function() {
+        console.log('beforeSend')
+      },
+      success: function() {
+        console.log('success')
+      },
+      complete: function() {
+        console.log('complete')
+      }
+    })
+  </script>
+</body>
+</html>
