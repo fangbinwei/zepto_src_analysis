@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+</head>
+<body>
+  <div id="div1">
+    hello world!
+    <div>
+      <h1>context div1</h1>
+    </div>
+  </div>
+  <script src="/src/zepto.js"></script>
+  <script src="/src/callbacks.js"></script>
+  <script>
+    var a = function (arg) {
+      console.log('callback a ' + arg)
+    }
+    var callback = $.Callbacks({memory: true})
+    callback.add(a)
+    callback.lock() // 未执行过fire, memory为undefined, lock等同于disable
+    callback.fire('fire')// 不执行
+
+    var b = function (arg) {
+      console.log('callback b ' + arg)
+    }
+    var callback2 = $.Callbacks({memory: true})
+    callback2.add(b)
+    callback2.fire('fire')
+    callback2.lock() // 执行过fire, lock将stack设为undefined
+    callback2.fire('fire') //不执行
+    console.log('lock后,再次add')
+    callback2.add(b)
+    
+  </script>
+</body>
+</html>

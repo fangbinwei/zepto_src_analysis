@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+</head>
+<body>
+  <div id="div1">
+    hello world!
+    <div>
+      <h1>context div1</h1>
+    </div>
+  </div>
+  <script src="/src/zepto.js"></script>
+  <script src="/src/callbacks.js"></script>
+  <script>
+    var a = function (arg) {
+      console.log('callback a ' + arg)
+    }
+    var callback = $.Callbacks({memory: true})
+    callback.add(a)
+    callback.fire('fire')// 执行的时候,记录memory
+
+    var b = function (arg) {
+      console.log('callback b ' + arg)
+    }
+    callback.add(b) // memory的存在, add后直接fire
+    
+  </script>
+</body>
+</html>
