@@ -6,7 +6,7 @@
   // Create a collection of callbacks to be fired in a sequence, with configurable behaviour
   // Option flags:
   //   - once: Callbacks fired at most one time. fire是否可以重复执行, 若设置为true, stack则为false, 执行一次fire()后则执行disable()
-  //   - memory: Remember the most recent context and arguments
+  //   - memory: Remember the most recent context and arguments 用来记录fire时的context,args
   //   - stopOnFalse: Cease iterating over callback list 回调函数返回false 则中止list中回调的继续执行
   //   - unique: Permit adding at most one instance of the same callback 设置添加的callback是不是具有唯一性,是否可以重复添加
   $.Callbacks = function(options) {
@@ -23,7 +23,7 @@
         list = [], // Actual callback list 
         stack = !options.once && [], // Stack of fire calls for repeatable lists
         fire = function(data) {
-          memory = options.memory && data
+          memory = options.memory && data // data -> [context, args]
           fired = true
           firingIndex = firingStart || 0
           // 重置firingStart
@@ -31,7 +31,7 @@
           firingLength = list.length
           firing = true
           // 循环list, 执行回调
-          // data[0] data[1]
+          // data[0]context data[1]args
           for ( ; list && firingIndex < firingLength ; ++firingIndex ) {
             if (list[firingIndex].apply(data[0], data[1]) === false && options.stopOnFalse) {
             // 返回false 并设置了stopOnFalse的情况
@@ -41,6 +41,7 @@
           }
           firing = false
           if (list) {
+        // stack = !options.once && []  once 为false, 执行stack中的回调
             if (stack) stack.length && fire(stack.shift())
             else if (memory) list.length = 0
             else Callbacks.disable()
@@ -108,6 +109,8 @@
           disabled: function() {
             return !list
           },
+          // 若memory存在, lock后不能继续fire, 但能add,并触发fire
+          // 若memory存在, 等同于options.once设置为true
           lock: function() {
             stack = undefined
             if (!memory) Callbacks.disable()
@@ -117,12 +120,12 @@
             return !stack
           },
           fireWith: function(context, args) {
-            // list 没有fire过 或 stack存在
+            // list 没有fire过 或 stack存在(!!options.once 为false)
             if (list && (!fired || stack)) {
               args = args || []
               // args.slice() 对数组进行拷贝, 由于memory会存储上此次的context,args, 防止被修改?
               args = [context, args.slice ? args.slice() : args]
-              // 回调正在触发, 则加入到stack中
+              // 回调正在触发,已经fire过,则加入到stack中
               if (firing) stack.push(args)
               else fire(args)
             }
