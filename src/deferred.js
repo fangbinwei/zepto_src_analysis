@@ -19,6 +19,7 @@
           state: function() {
             return state
           },
+          // 无论是resolve 还是reject, 总是执行
           always: function() {
             deferred.done(arguments).fail(arguments)
             return this
@@ -28,6 +29,7 @@
             return Deferred(function(defer){
               $.each(tuples, function(i, tuple){
                 var fn = $.isFunction(fns[i]) && fns[i]
+                // 将回调add 对应的list中
                 deferred[tuple[1]](function(){
                   var returned = fn && fn.apply(this, arguments)
                   if (returned && $.isFunction(returned.promise)) {
@@ -43,6 +45,7 @@
                 })
               })
               fns = null
+              // then 方法返回promise对象
             }).promise()
           },
 
@@ -53,24 +56,34 @@
         deferred = {}
 
     $.each(tuples, function(i, tuple){
+      // list -> $.Callbacks({once:, memory:})
       var list = tuple[2],
+      // stateString resolve/reject
           stateString = tuple[3]
 
+          // promise.done/fail/progress
       promise[tuple[1]] = list.add
 
       if (stateString) {
         list.add(function(){
+          // state pending ->resolve/reject
           state = stateString
+          // ^按位异或 0^1 1, 1^1 0, 2^1 3
+          // resolve, reject disable, progress lock
+          // reject, resolve disable, progress lock
+          // notify, undefined, progress lock
         }, tuples[i^1][2].disable, tuples[2][2].lock)
       }
 
       deferred[tuple[0]] = function(){
+        // resolveWith rejectWith notifyWith(context, args)
         deferred[tuple[0] + "With"](this === deferred ? promise : this, arguments)
         return this
       }
       deferred[tuple[0] + "With"] = list.fireWith
     })
 
+    // deferred extend了promise的属性
     promise.promise(deferred)
     if (func) func.call(deferred, deferred)
     return deferred
