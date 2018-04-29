@@ -1,7 +1,7 @@
 # Summary
 
 * [Introduction](README.md)
-* [zepto](README.md)
-  * [整理结构](zepto/index.md)
+* [zepto 模块](README.md)
+  * [整体结构](zepto/index.md)
 * [callbacks](callbacks.md)
 * [deferred](deferred.md)
