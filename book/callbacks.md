@@ -20,16 +20,20 @@
 Option flags:
 
 - once: Callbacks fired at most one time. 
-  fire()是否可以重复执行(fire会遍历回调函数list中的回调函数并执行), 若设置为true, 在触发过fire()后, 后续无法再直接调用fire()(但有间接调用fire()的方式)
+
+fire()是否可以重复执行(fire会遍历回调函数list中的回调函数并执行), 若设置为true, 在触发过fire()后, 后续无法再直接调用fire()(但有间接调用fire()的方式)
 
  - memory: Remember the most recent context and arguments.
- 若memory设置为true, 在调用过fire()之后, memory中会记录fire时的context,args
+ 
+若memory设置为true, 在调用过fire()之后, memory中会记录fire时的context,args
 
  - stopOnFalse: Cease iterating over callback list 
+
 在遍历回调函数list时, 若回调函数返回false, 则break, 中止list中回调的继续执行
 
  - unique: Permit adding at most one instance of the same callback 
- 设置添加的回调函数是不是具有唯一性,是否可以重复添加
+
+设置添加的回调函数是不是具有唯一性,是否可以重复添加
 
 ***
 下面看一些\$.Callbacks的用法, 例子主要涉及到option中的memory参数.
@@ -69,8 +73,8 @@ p1.then(function(value) {
     console.log(value); //42
 })
 ```
-resolve(), 可以用\$.Callbacks().fire()来实现
-\.then(), 是向回调list中添加回调函数, 可以用\$.Callbacks().add()来实现
+resolve(), 可以用\$.Callbacks().fire()来实现.
+then(), 是向回调list中添加回调函数, 可以用\$.Callbacks().add()来实现
 
 那么如果\.then() 还未执行的时候, 这时list中还没有任何内容, 而resolve()先执行了, 那么resolve()在执行的时候, 没有任何回调会被执行. 所以memory的机制就是为了解决这种场景的问题, 在add()之前, fire()先执行了, 但是memory保存了context, arguments, 那么在add()添加回调的时候, !!memory为true, 那就直接触发fire(), 执行添加的回调.
 ***
@@ -99,9 +103,9 @@ resolve(), 可以用\$.Callbacks().fire()来实现
 })(Zepto)
 ```
 
-`options = \$.extend({}, options)`, 这种方式对options进行处理, 可以避免没有传入options的情况, 不过ES6已经支持默认参数. 之后声明memory参数, 如果options中设置了memory为true, 那么在fire()函数中会对memory变量进行赋值. fired用于表明是否执行过fire(). firing则是表明当前是否正在执行回调函数list中的回调. 
+`options = $.extend({}, options)`, 使用这种方式对options进行处理, 可以避免没有传入options的情况, 不过ES6已经支持默认参数. 之后声明memory参数, 如果options中设置了memory为true, 那么在fire()函数中会对memory变量进行赋值. fired用于表明是否执行过fire(). firing则是表明当前是否正在执行回调函数list中的回调. 
 
-firingStart, firingLength, firingIndex都是涉及遍历list时的参数. list 是一个数组, 用于存放待执行的回调函数. stack与options的参数once有关, 若once为true, stack则为false, 否则为[].
+firingStart, firingLength, firingIndex都是涉及遍历list时的参数. list 是一个数组, 用于存放待执行的回调函数. stack与options.once有关, 若once为true, stack则为false, 否则为[].
 
 ## 内部fire()函数
 ```JavaScript
@@ -175,7 +179,7 @@ stack与options.once有关, 若设置options.once为false( 代表可以多次调
 
 ## Callbacks对象
 
-Callbacks对象主要向外部提供一些API.
+Callbacks对象主要向外部提供一些API, 大部分都支持链式调用.
 ```JavaScript
 Callbacks = {
           add: function() {
@@ -222,6 +226,7 @@ Callbacks = {
           }
         }
 ```
+
 ### disable()
 ```JavaScript
           disable: function() {
@@ -272,52 +277,51 @@ fireWith()首先判断list是否存在, fireWith()继续执行的情况有两种
 
 if语句的内容主要是对context和args进行修正, args最后的形式是[context, arguments], 这里若传入的args为数组, 则调用其slice(), 进行拷贝, 应该是为了防止对数组的修改, 更加安全.
 
-```JavaScript
-              if (firing) stack.push(args)
-              else fire(args)
-```
 接下来就是对firing的判断, 若list正在遍历中, 则将args加入到stack中, 在list遍历完后, 内部fire()函数会检查stack, 并执行. 否则, 直接调用fire().
+```JavaScript
+      if (firing) stack.push(args)
+      else fire(args)
+```
 
 这里有一个小细节, Callbacks.fire(arguments) -> Callbacks.fireWith(context, args) ->  fire(data).
 
-Callbacks.fire()调用Callbacks.fireWith() 传入的是一个类数组arguments.
+Callbacks.fire()调用Callbacks.fireWith() 传入的是一个类数组arguments, 
 ```JavaScript
       return Callbacks.fireWith(this, arguments)
 ```
 
+Callbacks.fire('im args'), 最终执行内部fire(data), data[1]是一个类数组, 内部函数fire()中使用了apply(), 这里有一个知识点apply()可以处理类数组.
 ```JavaScript
 if (list[firingIndex].apply(data[0], data[1]) === false && options.stopOnFalse) {
 ```
 
-Callbacks.fire('im args'), 最终执行内部fire(data), data[1]是一个类数组, 内部函数fire()中使用了apply(), 这里有一个知识点apply()可以处理类数组.
-
 ### add()
 ```javascript
-          add: function() {
-            if (list) {
-              var start = list.length,
-                  add = function(args) {
-                    $.each(args, function(_, arg){
-                      if (typeof arg === "function") {
-                        // unique为true,且list中不包含该callback, 或者unique为true则push
-                        if (!options.unique || !Callbacks.has(arg)) list.push(arg)
-                      }
-                      // arg为数组或类数组,则递归调用add函数
-                      else if (arg && arg.length && typeof arg !== 'string') add(arg)
-                    })
+      add: function() {
+        if (list) {
+          var start = list.length,
+              add = function(args) {
+                $.each(args, function(_, arg){
+                  if (typeof arg === "function") {
+                    // unique为true,且list中不包含该callback, 或者unique为true则push
+                    if (!options.unique || !Callbacks.has(arg)) list.push(arg)
                   }
-              add(arguments)
-              // list正在firing, 则修正firingLength, 以便刚add的callback也能够执行到
-              if (firing) firingLength = list.length
-              // 注意执行过fire, 会设置memory, 直接add 没有执行过fire,是不会执行下面的语句
-              else if (memory) {
-                // 设置fire()中的firingStart
-                firingStart = start
-                fire(memory)
+                  // arg为数组或类数组,则递归调用add函数
+                  else if (arg && arg.length && typeof arg !== 'string') add(arg)
+                })
               }
-            }
-            return this
-          },
+          add(arguments)
+          // list正在firing, 则修正firingLength, 以便刚add的callback也能够执行到
+          if (firing) firingLength = list.length
+          // 注意执行过fire, 会设置memory, 直接add 没有执行过fire,是不会执行下面的语句
+          else if (memory) {
+            // 设置fire()中的firingStart
+            firingStart = start
+            fire(memory)
+          }
+        }
+        return this
+      },
 ```
 #### 内部私有函数add()
 add()方法内部定义了一个私有的函数add()
@@ -364,7 +368,67 @@ add = function(args) {
 ```
 
 ### remove
+```JavaScript
+      remove: function() {
+        if (list) {
+          $.each(arguments, function(_, arg){
+            var index
+            // 判断remove的参数是否在list中
+            while ((index = $.inArray(arg, list, index)) > -1) {
+              list.splice(index, 1)
+              // Handle firing indexes
+              if (firing) {
+                if (index <= firingLength) --firingLength
+                if (index <= firingIndex) --firingIndex
+              }
+            }
+          })
+        }
+        return this
+      },
+```
+#### 遍历list
+```JavaScript
+    (index = $.inArray(arg, list, index)) > -1
+```
+remove()方法主要是对传入的参数进行遍历, 使用\$.inArray()来判断list中是否存在需要remove的回调函数, 若存在, 则使用splice()删除, 这里有一个细节, 使用index保存位置索引, 使得搜索更有效率.
+
+#### 调整list相关参数
+```JavaScript
+      if (firing) {
+        if (index <= firingLength) --firingLength
+        if (index <= firingIndex) --firingIndex
+      }
+```
+如果firing为true, 则调用remove(fn)方法, 需要调整list相关参数, 避免该操作对遍历的影响. 这里有个疑问, 存在index>firingLength的情况吗? 
 
 ### empty
+```JavaScript
+      empty: function() {
+        firingLength = list.length = 0
+        return this
+      },
+```
+empty()方法用于清空回调函数list, list.length = 0, 即可实现. 即便firing为true, 由于firingLength赋值为0, list的遍历也会终止.
 
 ### lock
+```JavaScript
+      lock: function() {
+        stack = undefined
+        if (!memory) Callbacks.disable()
+        return this
+      },
+```
+lock()方法与disable()方法类似, 有两种情况
+1. !memory为true, 等同于disable()
+2. !memory为false, 此时, 只是将stack置为undefined(类似options.once为true), lock后, 无法继续直接调用fire(), 但可以使用add()方法间接触发fire().
+
+***
+# Callbacks执行流程图
+关于add(), fire()方法, 这里画了它们的执行流程图, 可以帮助理解代码. 至于它们该称为"函数", 还是"方法", 这边就不细分了.
+
+![add()][1]
+[1]: https://raw.githubusercontent.com/fangbinwei/zepto_src_analysis/master/book/image/callbacks/%24.Callbacks().add().png
+
+![fire()][2]
+[2]: https://raw.githubusercontent.com/fangbinwei/zepto_src_analysis/master/book/image/callbacks/%24.Callbacks().fire().png
