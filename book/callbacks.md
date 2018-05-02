@@ -428,7 +428,8 @@ lock()方法与disable()方法类似, 有两种情况
 关于add(), fire()方法, 这里画了它们的执行流程图, 可以帮助理解代码. 至于它们该称为"函数", 还是"方法", 这边就不细分了.
 
 ![add()][1]
-[1]: https://raw.githubusercontent.com/fangbinwei/zepto_src_analysis/master/book/image/callbacks/%24.Callbacks().add().png
 
 ![fire()][2]
+
+[1]: https://raw.githubusercontent.com/fangbinwei/zepto_src_analysis/master/book/image/callbacks/%24.Callbacks().add().png
 [2]: https://raw.githubusercontent.com/fangbinwei/zepto_src_analysis/master/book/image/callbacks/%24.Callbacks().fire().png
