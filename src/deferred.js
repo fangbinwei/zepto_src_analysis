@@ -86,7 +86,6 @@
           // ^按位异或 0^1 1, 1^1 0, 2^1 3
           // resolve, reject disable, progress lock
           // reject, resolve disable, progress lock
-          // notify, undefined, progress lock
         }, tuples[i^1][2].disable, tuples[2][2].lock)// 最后会将notify的callback队列lock，lock后其不能fire
       }
 
