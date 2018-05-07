@@ -267,9 +267,9 @@ promise.promise(deferred), 在deferred对象上扩展了promise的state,always,t
     function wait() {
         let deferred = $.Deferred()
         setTimeout(() => {
-            deferred.resolve(41)
+            deferred.resolve(42)
         },5000)
-        return deferred.promise()
+        return deferred
     }
 ```
 
@@ -324,4 +324,96 @@ promise.promise(deferred), 在deferred对象上扩展了promise的state,always,t
         }).promise()
       },
 ```
-then()方法主要是用来往deferred中对应resolve/reject/notify的list中添加回调函数, 除此之外还要保证其可以链式调用, 添加的回调函数有可能返回promise对象.
+then()方法主要是用来往deferred中对应resolve/reject/notify的list中添加回调函数, 除此之外还要保证其可以链式调用, 添加的回                                                                                                                                      调函数有可能返回promise对象.
+
+#### 返回值
+```JavaScript
+return Deferred(func).promise()
+```
+then()方法返回的是一个promise对象, 可以支持链式调用.
+
+#### 遍历tuples, 添加回调fnDone/fnFailed/fnProgress
+```JavaScript
+      var fns = arguments
+      $.each(tuples, function(i, tuple){
+        var fn = $.isFunction(fns[i]) && fns[i]
+        deferred[tuple[1]](function(){
+          var returned = fn && fn.apply(this, arguments)
+          if (returned && $.isFunction(returned.promise)) {
+            returned.promise()
+              .done(defer.resolve)
+              .fail(defer.reject)
+              .progress(defer.notify)
+          } else {
+            var context = this === promise ? defer.promise() : this,
+                values = fn ? [returned] : arguments
+            defer[tuple[0] + "With"](context, values)
+          }
+        })
+      })
+```
+首先判断传入参数是否是函数, 并调用deferred.done/fail/progress添加一个回调函数, 该回调函数的职责主要有两个:
+
+1. 执行then()传入的函数参数
+2. 判断传入函数的返回值, 根据其是否有promise方法, 进行不同的处理
+
+```JavaScript
+      if (returned && $.isFunction(returned.promise)) {
+        // console.log('if')
+        // 当then(fn) 中异步函数fn执行完，触发return的promise所对应deferred的resolve
+        returned.promise()
+          .done(defer.resolve)
+          .fail(defer.reject)
+          .progress(defer.notify)
+      }
+```
+##### 异步情况
+如果是返回值有promise方法, 说明then()传入的是一个异步函数, 则给该异步函数的done/fail/progress 绑定defer.resolve/reject/notify, 使该异步函数执行完后, 能够将状态继续传给下一个deferred(在这里是defer, defer来自 Deferred(function(defer){})), 这里可能听着有点绕. 下面会举栗子.
+
+##### 同步情况
+```JavaScript
+ } else {
+        var context = this === promise ? defer.promise() : this,
+            values = fn ? [returned] : arguments
+        defer[tuple[0] + "With"](context, values)
+      }
+```
+如果不出什么幺蛾子, this === promise 是能够成立的, 因为下面这段代码不出意外, 传入的是promise
+```JavaScript
+ deferred[tuple[0] + "With"](this === deferred ? promise : this, arguments)
+```
+如果fn回调函数存在, 它的返回值包装成数组, 传给resolveWith/rejectWith/notifyWith, 因为callbacks模块中, 会调用apply来执行.
+
+##### 释放引用
+```JavaScript
+fns = null
+```
+
+### then的一个栗子
+下面看一个栗子, 包含了同步和异步的情况,
+```JavaScript
+    let deferred = $.Deferred()
+    deferred.resolve(41)
+    let then1 = deferred.then(function(value){
+      console.log('before wait, value: ', value)
+      return wait()
+    })
+
+    let then2 = then1.then(function(value) {
+        console.log(value) //42
+    })
+
+    function wait() {
+        let deferred = $.Deferred()
+        setTimeout(() => {
+            deferred.resolve(42)
+        },5000)
+        return deferred
+    }
+```
+![deferred][1]
+
+[1]: https://raw.githubusercontent.com/fangbinwei/zepto_src_analysis/master/book/image/deferred/zepto_deferred.png
+
+# $.when()
+$.when() 类似Promise.all(), 管理一系列异步操作, 在所有异步操作执行完后, 才调用回调函数, 
