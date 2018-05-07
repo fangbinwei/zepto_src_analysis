@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+</head>
+<body>
+  <div id="div1">
+    hello world!
+    <div>
+      <h1>context div1</h1>
+    </div>
+  </div>
+  <script src="/src/zepto.js"></script>
+  <script src="/src/event.js"></script>
+  <script src="/src/callbacks.js"></script>
+  <script src="/src/deferred.js"></script>
+  <script>
+    var wait = function() {
+      var defer = $.Deferred()
+      var tasks = function() {
+        defer.notify('before done')
+        console.log('wait function done!')
+        defer.notify('after done')
+        defer.reject('wait reject')
+        defer.notify('after resolve')// 无法执行，被lock了
+      }
+      setTimeout(tasks, 5000)
+      // tasks()
+      return defer
+    }
+    var wait2 = function() {
+      var defer = $.Deferred()
+      var tasks = function() {
+        defer.notify('before done')
+        console.log('wait2 function done!')
+        defer.notify('after done')
+        defer.resolve('wait2 resolve')
+      }
+      setTimeout(tasks, 5000)
+      // tasks()
+      return defer
+    }
+    function two () {
+      console.log('two')
+      return 'two'
+    }
+    $.when(wait(), two(), wait2())
+     .progress(function(value, value2, value3) {
+       console.log('progress value: ', value, value2, value3)
+     })
+     .done(function(value, value2, value3) {
+       console.log('hhh successfully')
+       console.log('value', value, value2, value3)
+    })
+     .fail(function(err) {
+       console.log(err, '出错了')
+     })
+    // $.when(two(), two())
+    //  .done(function(value) {
+    //    console.log('value', value)
+    //  })
+    
+  </script>
+</body>
+</html>

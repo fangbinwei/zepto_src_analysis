@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+</head>
+<body>
+  <div id="div1">
+    hello world!
+    <div>
+      <h1>context div1</h1>
+    </div>
+  </div>
+  <script src="/src/zepto.js"></script>
+  <script src="/src/event.js"></script>
+  <script src="/src/callbacks.js"></script>
+  <script src="/src/deferred.js"></script>
+  <script>
+    let deferred = $.Deferred()
+    deferred.resolve(41)
+    let then1 = deferred.then(function (value) {
+      console.log(this === deferred.promise())
+      console.log('value ', value)
+    })   
+  </script>
+</body>
+</html>
