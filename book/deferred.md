@@ -360,17 +360,17 @@ then()方法返回的是一个promise对象, 可以支持链式调用.
 ```JavaScript
       if (returned && $.isFunction(returned.promise)) {
         // console.log('if')
-        // 当then(fn) 中异步函数fn执行完，触发return的promise所对应deferred的resolve
+        // 当then(fn) 中函数fn执行完，触发return的promise所对应deferred的resolve
         returned.promise()
           .done(defer.resolve)
           .fail(defer.reject)
           .progress(defer.notify)
       }
 ```
-##### 异步情况
-如果是返回值有promise方法, 说明then()传入的是一个异步函数, 则给该异步函数的done/fail/progress 绑定defer.resolve/reject/notify, 使该异步函数执行完后, 能够将状态继续传给下一个deferred(在这里是defer, defer来自 Deferred(function(defer){})), 这里可能听着有点绕. 下面会举栗子.
+##### promise情况
+如果是返回值有promise方法, 说明then()传入的是一个deferred/promise对象, 并调用promise的done/fail/progress 绑定defer.resolve/reject/notify, 使该函数执行完后, 能够将状态继续传给defer, defer来自 Deferred(function(defer){}), 这里可能听着有点绕. 下面会举栗子.
 
-##### 同步情况
+##### 非promise情况
 ```JavaScript
  } else {
         var context = this === promise ? defer.promise() : this,
@@ -415,5 +415,180 @@ fns = null
 
 [1]: https://raw.githubusercontent.com/fangbinwei/zepto_src_analysis/master/book/image/deferred/zepto_deferred.png
 
-# $.when()
-$.when() 类似Promise.all(), 管理一系列异步操作, 在所有异步操作执行完后, 才调用回调函数, 
+# \$.when()
+$.when() 类似Promise.all(), 管理一个队列, 队列中是一系列Promise对象(zepto中是deferred/promise), 在队列中所有Promise对象resolve后, 才执行回调函数.
+
+## 一些变量声明
+```JavaScript
+  $.when = function(sub) {
+    var resolveValues = slice.call(arguments),
+        len = resolveValues.length,
+        i = 0,
+        remain = len !== 1 || (sub && $.isFunction(sub.promise)) ? len : 0,
+        deferred = remain === 1 ? sub : Deferred(),
+        progressValues, progressContexts, resolveContexts,
+        updateFn = function(i, ctx, val){
+          return function(value){
+            ctx[i] = this
+            val[i] = arguments.length > 1 ? slice.call(arguments) : value
+            if (val === progressValues) {
+              deferred.notifyWith(ctx, val)
+            } else if (!(--remain)) {
+              deferred.resolveWith(ctx, val)
+            }
+          }
+        }
+```
+resolveValues的初始值是arguments的数组化后的副本, 后续会用来存放\$.Deferred().resolve(args)中的args.
+
+len表示\$.when()传入参数的数量
+
+```JavaScript
+    remain = len !== 1 || (sub && $.isFunction(sub.promise)) ? len : 0,
+```
+1. 若len!==1, remain = len
+2. 若len===1, 则判断sub是否有promise方法, 若有, remain = 1, 否则 remain =0
+
+remain可以理解为arguments的长度, 后续会根据\$.when()传入的参数是否有promise方法进行修正.
+
+```JavaScript
+   deferred = remain === 1 ? sub : Deferred(),
+```
+若remain为1, 则deferred赋值为sub, 否则使用Deferred(). 
+
+这里需要注意remain为1的情况,\$.when(sub) return的是sub.promise(), \$.when(sub).done/fail/notify等都是直接在sub.promise()上进行, remain不为0的情况, 使用Deferred()创建了一个代理deferred, 当队列中的对象全部resolve后, 会触发代理deferred的resolve. reject/notify的情况也类似.
+
+```JavaScript
+progressValues, progressContexts, resolveContexts,
+```
+接着定义progressValues, 用于保存队列中的对象notify时传递的value, progressContext, resolveContexts, 分别保存队列中对象notify和resolve的context.
+
+### updateFn
+```JavaScript
+    updateFn = function(i, ctx, val){
+      return function(value){
+        ctx[i] = this
+        val[i] = arguments.length > 1 ? slice.call(arguments) : value
+        
+        if (val === progressValues) {
+          deferred.notifyWith(ctx, val)
+        } else if (!(--remain)) {
+          deferred.resolveWith(ctx, val)
+        }
+      }
+    }
+```
+\$.when()可以传入一系列含promise方法的对象, 这些对象在resolve/notify后, 都会执行updateFn()返回的函数, 为了方便下文叙述, 我们将其返回的函数记为**updateFnReturn**.
+
+i 是\$.when()传入参数 arguments的索引, 即队列的索引, ctx是用于保存队列中对象resolve/notify时的context, 是一个数组, val是用于保存队列中对象resolve/notify时的参数, 即上面代码中的value, val也是一个数组.
+
+```JavaScript
+    val[i] = arguments.length > 1 ? slice.call(arguments) : value
+```
+若arguments长度大于1, 则val[i]赋值为arguments数组化的一个副本, 如果长度为1, val[i]直接赋值为value.
+```JavaScript
+        if (val === progressValues) {
+          deferred.notifyWith(ctx, val)
+        } else if (!(--remain)) {
+          deferred.resolveWith(ctx, val)
+        }
+```
+队列中的对象在resolve/notify后都会执行updateFnReturn, 需要区别这两种情况.
+
+val === progressValues的时候, 说明队列中的对象调用了notify, 马上执行deferred.notifyWith(ctx, val), 需要注意\$.when()返回的就是这里的deferred.promise(), 再次提醒ctx, val都是数组, 所以\$.when(sub).progress(func)的func中的this也是一个数组, 
+
+如果不是调用了notify, 就说明调用了resolve, 那就将remain减1, 当remain减到了0, 说明队列中的对象全部resolve完了, 此时再最后调用deferred.resolveWith, 执行\$.when(sub).done(func)所添加的回调.
+
+## 队列长度为1的情况
+当remain为1时, deferred = sub, 直接return deferred.promise()
+
+## 队列长度为0的情况
+```JavaScript
+    if (!remain) deferred.resolveWith(resolveContexts, resolveValues)
+```
+1. $.when()没有传入参数, resolveContexts 为undefined, resolveValues为空数组[].
+2. 传入的参数没有promise方法,如下, 则resolveContexts为空数组, resolveValues与传入参数有关, 若为undefined, resolveValues是[undefined,]这种空数组的形式.
+```JavaScript
+function two() {
+    console.log('two')
+}
+$.when(two())
+```
+
+## 队列长度大于1的情况
+```JavaScript
+    if (len > 1) {
+      progressValues = new Array(len)
+      progressContexts = new Array(len)
+      resolveContexts = new Array(len)
+      for ( ; i < len; ++i ) {
+        if (resolveValues[i] && $.isFunction(resolveValues[i].promise)) {
+          resolveValues[i].promise()
+            .done(updateFn(i, resolveContexts, resolveValues))
+            .fail(deferred.reject)
+            .progress(updateFn(i, progressContexts, progressValues))
+        } else {
+          // 若resolveValues[i]为非异步函数(返回值没有promise函数), remain对应减1
+          --remain
+        }
+      }
+    }
+```
+首先初始化progressValues, progressContexts, resolveContexts, 然后判断resolveValues数组中的各项是否有promise方法, 若没有, remain自减.
+
+若resolveValues[i]有promise方法, 则调用其promise上的done/fail/progress 传入updateFn(i, ctx, val)的返回函数或deferred.reject, 若调用了fail(deferred.reject), 后续deferred.resolveWith都不会执行, 因为他们对应的list 已经disable.
+
+## \$.when的示例
+```JavaScript
+    var wait = function() {
+      var defer = $.Deferred()
+      var tasks = function() {
+        defer.notify('before done')
+        console.log('wait function done!')
+        defer.notify('after done')
+        defer.reject('wait reject')
+        defer.notify('after resolve')// 无法执行，被lock了
+      }
+      setTimeout(tasks, 5000)
+      // tasks()
+      return defer
+    }
+    var wait2 = function() {
+      var defer = $.Deferred()
+      var tasks = function() {
+        defer.notify('before done')
+        console.log('wait2 function done!')
+        defer.notify('after done')
+        defer.resolve('wait2 resolve')
+      }
+      setTimeout(tasks, 5000)
+      // tasks()
+      return defer
+    }
+    function two () {
+      console.log('two')
+      return 'two'
+    }
+    $.when(wait(), two(), wait2())
+     .progress(function(value, value2, value3) {
+       console.log('progress value: ', value, value2, value3)
+     })
+     .done(function(value, value2, value3) {
+       console.log('hhh successfully')
+       console.log('value', value, value2, value3)
+    })
+     .fail(function(err) {
+       console.log(err, '出错了')
+     })
+```
+```
+two
+progress value:  before done undefined undefined
+wait function done!
+progress value:  after done undefined undefined
+wait reject 出错了
+wait2 function done!
+```
+
+# 小结
+还是喜欢ES6的Promise, 个人觉得分什么deferred, promise, 弄得太乱了, 不易于理解代码.
