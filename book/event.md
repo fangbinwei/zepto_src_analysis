@@ -56,7 +56,7 @@ mouseover/mouseout事件会冒泡, 而mouseenter/mouseleave则不会冒泡, 但�
     return element._zid || (element._zid = _zid++)
   }
 ```
-zid()用于查找DOM元素的_zid属性, 若没有_zid属性, 则用变量_zid赋值,之后自增1. 若使用event模块为DOM元素添加过事件, 那它们会有唯一的标识_zid. event模块会将DOM元素的事件回调函数存入handles[_zid]所指向的数组中, 从而进行统一管理.
+zid()用于查找DOM元素的_zid属性, 若没有_zid属性, 则用变量_zid赋值,之后自增1. 若使用event模块为DOM元素添加过事件, 那它们会有唯一的标识_zid. event模块会将DOM元素的事件回调函数(handler)存入handlers[_zid]所指向的数组中, 从而进行统一管理.
 
 ## parse(event)
 ```JavaScript
@@ -110,4 +110,48 @@ eventCapture()函数用于决定在事件的捕获阶段调用回调函数, 还�
 ```
 eventCapture()首先判断handler.del, 若handler.del为true(是事件委托, 事件委托要求事件能够冒泡.), 且在浏览器不支持foucusin时, 绑定的事件为focus/blur, 由于它们不冒泡, 所以只能在事件捕获阶段进行事件委托, return true. 否则, `handler.del && (!focusinSupported && (handler.e in focus))` 判断为false, 由captureSetting来决定, captureSetting默认为undefined, !!captureSetting默认为false.
 
+## findHandlers(element, event, fn, selector)
+```javascript
+  function findHandlers(element, event, fn, selector) {
+    event = parse(event)
+    if (event.ns) var matcher = matcherFor(event.ns)
+    return (handlers[zid(element)] || []).filter(function(handler) {
+      return handler
+        && (!event.e  || handler.e == event.e)
+        && (!event.ns || matcher.test(handler.ns))
+        && (!fn       || zid(handler.fn) === zid(fn))
+        && (!selector || handler.sel == selector)
+    })
+  }
+```
+element的事件handler会缓存在handlers[zid(element)]中的数组内. 该函数就是用于handler的查找, 缓存handlers可以在需要的时候触发它们, \$.fn.triggerHandler(event, args) 了解一下.
+
+```JavaScript
+    event = parse(event)
+    if (event.ns) var matcher = matcherFor(event.ns)
+```
+该函数首先调用了parse()来解析其命名空间, 如果设置了命名空间, 则调用matcherFor()生成命名空间的正则表达式.
+
+根据zid(element)确定element的_zid, handler是以_zid为索引存在handlers[_zid]的数组内, 使用数组的filter方法过滤符合条件的handler.
+
+若存在even.e/ns, fn, selector, 分别和handler中的属性进行比对.
+
+这里有一个需要注意的地方, 判断是否是同一个函数fn, 正常来说应该是使用`handler.fn === fn`, 而这里是用函数的_zid来判断, 这个判断条件相对宽松一点. 两个并不完全相同的函数, 可以有相同的_zid(two functions that are not === can have the same _zid ), 比如一个函数fn, 和\$.proxy(fn, context) 返回的函数有相同的_zid, $.proxy(fn, context)可以指定一个上下文context, 后面会讲到.
+
+## realEvent(type)
+```JavaScript
+  function realEvent(type) {
+    return hover[type] || (focusinSupported && focus[type]) || type
+  }
+```
+realEvent()函数, 若提供focus/blur, 在支持focusin的情况下, 返回 focusin/focusout; 若提供mouseenter/leave的情况下, 返回mouseover/out, 主要在addEventListener时统一事件冒泡.
+
+## compatible
+
 # 扩展的方法
+## $.fn.on()
+
+### add()
+### remove()
+
+## $.fn.off()
