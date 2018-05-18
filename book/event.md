@@ -1,8 +1,11 @@
 # event
 
 # event模块做了些什么?
+- event模块尽量使用了能够冒泡的事件, 这样更容易进行事件委托. 
+- 并提供了一些创建事件, 触发事件的方法. 
+- 对事件对象e做了相关兼容和扩展.
+- 提供事件绑定的方法, 同时进行多个事件的绑定,可以方便地设置一些额外功能, 如执行一次后就解决事件的绑定等.
 
-//...
 # 整体代码结构
 
 event模块同样是包裹在IIFE内, 传入Zepto(\$), 并在\$上扩展一些事件相关的方法, 像是\$.fn.on, \$.Event
@@ -321,13 +324,108 @@ match是事件委托匹配到的DOM元素, 是利用\$.fn.closest 从e.target元
 ```JavaScript
     return (autoRemove || callback).apply(match, [evt].concat(slice.call(arguments, 1)))
 ```
-delegator()的return 以match为context执行了回调,并传入代理事件对象evt, 使用slice方法删除原生e对象. delegator()函数已经包含了autoRemove()函数的情况.
+delegator()的return 以match为context执行了回调,并传入代理事件对象evt, 使用slice方法删除原生事件e对象. delegator()函数已经包含了autoRemove()函数的情况.
 
 ```JavaScript
   add(element, event, callback, data, selector, delegator || autoRemove)
 ```
 最后使用内部函数add()进行事件绑定.
 
+### add(element, events, fn, data, selector, delegator, capture)
+add()函数调用addEventListener(), 使用$.fn.on()提供的参数进行事件绑定, 并缓存事件的相关属性(如callback等)到handlers.
+
+```javascript
+    var id = zid(element), set = (handlers[id] || (handlers[id] = []))
+```
+首先获得element的_zid, 以_zid为索引, 将handler缓存在handlers[_zid]的数组set内.
+
+#### 遍历事件
+```JavaScript
+    events.split(/\s/).forEach(function(event){
+    // ...
+    })
+```
+由于传入的event是可以同时包含多个事件的字符串, 如'click mouseenter', 所以add()函数使用split(/\s/) 配合数组的foreEach进行遍历.
+
+```JavaScript
+   if (event == 'ready') return $(document).ready(fn)
+```
+如果传入的事件是'ready', 则调用\$.fn.ready(), 若DOM未完全加载, 绑定DOMContentLoaded事件, 若DOM已完全加载解析, 直接调用回调fn.
+
+#### 缓存handler的一些属性
+```JavaScript
+  var handler   = parse(event)
+  handler.fn    = fn
+  handler.sel   = selector
+```
+handler初始值是parse()返回的对象, 并缓存了fn, sel等属性.
+
+```JavaScript
+  if (handler.e in hover) fn = function(e){
+    var related = e.relatedTarget
+    if (!related || (related !== this && !$.contains(this, related)))
+      return handler.fn.apply(this, arguments)
+  }
+```
+如果事件是mouseenter/leave, 则使用mouseover/out来模拟.
+
+对于mouseover事件来说，该属性是鼠标指针移到目标节点上时所离开的那个节点。
+对于mouseout事件来说，该属性是离开目标时，鼠标指针进入的节点。
+
+related不存在, 或 related不为当前绑定事件的元素/子元素, 就可以模拟mouseenter/leave. 下面这篇文章说得很详细.
+
+> https://juejin.im/post/5935773fa0bb9f0058edbd61
+
+```JavaScript
+  handler.del   = delegator
+  var callback  = delegator || fn
+```
+若设置了事件委托, 则callback赋值为delegator, 否则使用回调函数fn.
+
+```JavaScript
+      handler.proxy = function(e){
+        e = compatible(e)
+      if (e.isImmediatePropagationStopped()) return
+        e.data = data
+        var result = callback.apply(element, e._args == undefined ? [e] : [e].concat(e._args))
+        if (result === false) e.preventDefault(), e.stopPropagation()
+        return result
+      }
+```
+设置代理回调函数, 使用addEventListener()绑定的其实是这个代理回调函数, 代理回调函数可以对事件参数e做一些兼容处理, 或一些其它的预处理, 然后再将事件参数e传给真正的回调函数callback.
+
+```JavaScript
+    e = compatible(e)
+```
+对事件参数e做兼容扩展处理.
+
+```JavaScript
+    if (e.isImmediatePropagationStopped()) return
+```
+如果事件参数e调用过stopImmediatePropagation, 则直接返回, 不执行下面的代码. 之所以要这么做, 是为了兼容没有原生支持stopImmediatePropagation()方法的浏览器,如Android2.3.
+
+```JavaScript
+    e.data = data
+```
+扩展e对象,加入data属性.
+
+```JavaScript
+        var result = callback.apply(element, e._args == undefined ? [e] : [e].concat(e._args))
+        if (result === false) e.preventDefault(), e.stopPropagation()
+        return result
+```
+e._args在\$.fn.triggerhandler()方法中可能会传入, 所以若不为undefined, 则用concat()拼接传给callback.apply().
+
+若callback的返回值是false, 则阻止默认行为和冒泡.
+
+在addEventListener()中return false, 它不会做任何事, 如果在`onclick=`这种形式中使用`return false` 会阻止默认行为, 等同于使用`e.preventDefault()`
+
+```javascript
+document.oncontextmenu = function(event) {
+    return false// 等同event.preventDefault()
+}
+```
+具体可以参考下面的内容.
 
 > return false from a DOM2 handler (addEventListener) does nothing at all (neither prevents the default nor stops bubbling; from a Microsoft DOM2-ish handler (attachEvent), it prevents the default but not bubbling; from a DOM0 handler (onclick="return ..."), it prevents the default (provided you include the return in the attribute) but not bubbling; from a jQuery event handler, it does both, because that's a jQuery thing.
 
@@ -335,9 +433,268 @@ delegator()的return 以match为context执行了回调,并传入代理事件对�
 
 > https://stackoverflow.com/questions/1357118/event-preventdefault-vs-return-false
 
-### add()
+```JavaScript
+  handler.i = set.length
+  set.push(handler)
+```
+设置handler在set(handlers[_zid])中的index, 并将handler push到set中.
 
+#### 绑定事件
+```JavaScript
+      if ('addEventListener' in element)
+        element.addEventListener(realEvent(handler.e), handler.proxy, eventCapture(handler, capture))
+```
+使用addEventListener()进行事件绑定, realEvent()将使用mouseover/out替换mouseenter/leave事件, 在支持focusin事件的情况下, 使用focusin/out 替换 focus/blur.
 
-### remove()
+eventCapture() 在使用事件委托, 且浏览器不支持focusin的时候, 设置为在捕获阶段调用事件处理程序.
 
 ## $.fn.off()
+\$.fn.off()主要用于解除事件的绑定, 调用了内部函数remove()
+
+```JavaScript
+var $this = this
+    if (event && !isString(event)) {
+      $.each(event, function(type, fn){
+        $this.off(type, selector, fn)
+      })
+      return $this
+    }
+```
+首先对传入的参数做一个判断, 如若event是以事件类型为键, 回调函数为值的对象形式, 则使用\$.each()遍历, 递归调用\$.fn.off()
+
+```JavaScript
+    if (!isString(selector) && !isFunction(callback) && callback !== false)
+      callback = selector, selector = undefined
+
+    if (callback === false) callback = returnFalse
+```
+修正参数, 没有没有传递selector, 那selector实际传入的是callback(callback也许也没传). 如果callback是false, 则使用returnFalse代替, 因为绑定事件时, callback是false, 绑定的就是returnFalse.
+
+```JavaScript
+    return $this.each(function(){
+      remove(this, event, callback, selector)
+    })
+```
+遍历Zepto对象(\$.())中的DOM元素, 使用remove解除事件绑定.
+
+### remove()
+```javascript
+  function remove(element, events, fn, selector, capture){
+    var id = zid(element)
+    ;(events || '').split(/\s/).forEach(function(event){
+      findHandlers(element, event, fn, selector).forEach(function(handler){
+        delete handlers[id][handler.i]
+      if ('removeEventListener' in element)
+        element.removeEventListener(realEvent(handler.e), handler.proxy, eventCapture(handler, capture))
+      })
+    })
+  }
+```
+remove 函数会使用removeEventListener()解除事件的绑定, 并删除其在handlers中的缓存.
+
+首先获取传入element的_zid, 并遍历传入的events字符串, 传入的events可以包含多个事件, 其实不传入也没关系, 那样会删除element上绑定的所有事件.
+
+```JavaScript
+      findHandlers(element, event, fn, selector).forEach(function(handler){
+        delete handlers[id][handler.i]
+      if ('removeEventListener' in element)
+        element.removeEventListener(realEvent(handler.e), handler.proxy, eventCapture(handler, capture))
+      })
+```
+对所遍历到的event, 使用findHandlers()来找到他们的handler, 并使用delete删除, 并使用element.removeEventListener()解除事件的绑定. 若没有传入event, findHandlers()返回的是element上所有handler.
+
+## $.proxy(fn, context)
+> 接受一个函数，然后返回一个新函数，并且这个新函数始终保持了特定的上下文(context)语境，新函数中this指向context参数。另外一种形式，原始的function是从上下文(context)对象的特定属性读取。 如果传递超过2个的额外参数，它们被用于传递给fn参数的函数 引用。
+
+$.proxy()主要是让函数fn在制定的上下文context下执行, 类似于bind()函数
+```JavaScript
+  $.proxy = function(fn, context) {
+    var args = (2 in arguments) && slice.call(arguments, 2)
+    if (isFunction(fn)) {
+      var proxyFn = function(){ return fn.apply(context, args ? args.concat(slice.call(arguments)) : arguments) }
+      proxyFn._zid = zid(fn)
+      return proxyFn
+    } else if (isString(context)) {
+      if (args) {
+        args.unshift(fn[context], fn)
+        return $.proxy.apply(null, args)
+      } else {
+        return $.proxy(fn[context], fn)
+      }
+    } else {
+      throw new TypeError("expected function")
+    }
+  }
+```
+ 
+ ```JavaScript
+    var args = (2 in arguments) && slice.call(arguments, 2)
+ ```
+ 如果传入超过2个参数, 将后面的参数提取出来赋值给args.
+ 
+ ```JavaScript
+  if (isFunction(fn)) {
+      var proxyFn = function(){ return fn.apply(context, args ? args.concat(slice.call(arguments)) : arguments) }
+      proxyFn._zid = zid(fn)
+      return proxyFn
+    } else if (isString(context)) {
+    //...
+    }
+    //...
+ ```
+ 若fn是函数, 则构建一个代理函数返回, 内部使用apply()来指定context, 将args作为参数加到arguments前面.
+
+另一种情况是fn是一个对象字面量, `$.proxy(context, property)`
+
+```JavaScript
+  } else if (isString(context)) {
+  if (args) {
+    args.unshift(fn[context], fn)
+    return $.proxy.apply(null, args)
+  } else {
+```
+使用unshift(), 将函数和执行上下面加入到args的数组中, 再调用\$.proxy.apply()
+
+```JavaScript
+    } else {
+      throw new TypeError("expected function")
+    }
+```
+最后, 不过不满足传入参数的格式要求, 抛出错误.
+
+## $.fn.on(), $.fn.off()衍生的方法
+```JavaScript
+  $.fn.bind = function(event, data, callback){
+    return this.on(event, data, callback)
+  }
+  $.fn.unbind = function(event, callback){
+    return this.off(event, callback)
+  }
+  $.fn.one = function(event, selector, data, callback){
+    return this.on(event, selector, data, callback, 1)
+  }
+    $.fn.delegate = function(selector, event, callback){
+    return this.on(event, selector, callback)
+  }
+  $.fn.undelegate = function(selector, event, callback){
+    return this.off(event, selector, callback)
+  }
+
+  $.fn.live = function(event, callback){
+    $(document.body).delegate(this.selector, event, callback)
+    return this
+  }
+  $.fn.die = function(event, callback){
+    $(document.body).undelegate(this.selector, event, callback)
+    return this
+  }
+```
+
+## $.fn.trigger(event, args)
+该方法主要用于触发事件.
+```JavaScript
+    event = (isString(event) || $.isPlainObject(event)) ? $.Event(event) : compatible(event)
+    event._args = args
+```
+如果传入的是字符串, 或对象字面量(关于\$.isPlainObject()具体参考[这篇文章](http://snandy.iteye.com/blog/663245)), 则使用\$.Event()创建一个事件, 否则调用compatible(). 将需要传递的参数保存在event._args中.
+
+```JavaScript
+    return this.each(function(){
+      // handle focus(), blur() by calling them directly
+      if (event.type in focus && typeof this[event.type] == "function") this[event.type]()
+      // items in the collection might not be DOM elements
+      else if ('dispatchEvent' in this) this.dispatchEvent(event)
+      else $(this).triggerHandler(event, args)
+    })
+```
+遍历Zepto对象中的DOM元素, 如果要触发focus/blur事件, 直接调用focus(), blur(), 否则使用dispatchEvent方法触发事件, 再不行, 就用自己定义的triggerhandler()触发事件的回调函数, 但是这种方式不会冒泡.
+
+## $.fn.triggerHandler(event, args)
+```JavaScript
+  // triggers event handlers on current element just as if an event occurred,
+  // doesn't trigger an actual event, doesn't bubble
+  $.fn.triggerHandler = function(event, args){
+    var e, result
+    this.each(function(i, element){
+      e = createProxy(isString(event) ? $.Event(event) : event)
+      e._args = args
+      e.target = element
+      $.each(findHandlers(element, event.type || event), function(i, handler){
+        result = handler.proxy(e)
+        if (e.isImmediatePropagationStopped()) return false
+      })
+    })
+    return result
+  }
+```
+同样, 先遍历Zepto对象中的DOM元素.
+```JavaScript
+      e = createProxy(isString(event) ? $.Event(event) : event)
+```
+若传入的event是字符串, 则使用\$.Event()创建事件对象. 最后使用createProxy()得到一个代理事件对象. 
+
+```JavaScript
+      e._args = args
+      e.target = element
+```
+给事件对象添加一些额外的属性.
+
+```JavaScript
+  $.each(findHandlers(element, event.type || event), function(i, handler){
+    result = handler.proxy(e)
+    if (e.isImmediatePropagationStopped()) return false
+  })
+```
+使用findHandlers()找到对应DOM元素的handler, 并调用`handler.proxy(e)`回调函数.
+
+```JavaScript
+    if (e.isImmediatePropagationStopped()) return false
+```
+其实这句话不加, 影响并不是很大, 首先这种\$.fn.triggerHandler()的方式并不冒泡, 且handler.proxy()中, 本身有`if (e.isImmediatePropagationStopped()) return`这句代码, 但是使用`return false`直接调出\$.each()显然更有效率.
+
+## $.Event(type, props)
+创建并初始化一个指定的DOM事件. 如果给定properties对象, 使用它来扩展出新的事件对象. 默认情况下, 事件被设置为冒泡方式; 这个可以通过设置bubbles为false来关闭.
+```JavaScript
+  if (!isString(type)) props = type, type = props.type
+```
+若type不是字符串, 修正下参数.
+
+```JavaScript
+    var event = document.createEvent(specialEvents[type] || 'Events'), bubbles = true
+    // specialEvents={} specialEvents.click = specialEvents.mousedown = specialEvents.mouseup = specialEvents.mousemove = 'MouseEvents'
+```
+创建一个事件对象, 这边specialEvents修正鼠标事件为MouseEvents, 使用document.createEvent()创建事件对象.
+
+```JavaScript
+if (props) for (var name in props) (name == 'bubbles') ? (bubbles = !!props[name]) : (event[name] = props[name])
+```
+将props中的属性拷贝到event中, 并判断props中是否设置了bubbles属性.
+
+```JavaScript
+    event.initEvent(type, bubbles, true)
+```
+初始化事件.
+
+```JavaScript
+return compatible(event)
+```
+返回一个扩展过的事件对象.
+
+### 提醒
+这种方式创建自定义对象已经废弃, deprecated 
+> https://developer.mozilla.org/en-US/docs/Web/Guide/Events/Creating_and_triggering_events
+
+## shortcut methods
+```JavaScript
+  // shortcut methods for `.bind(event, fn)` for each event type
+  ;('focusin focusout focus blur load resize scroll unload click dblclick '+
+  'mousedown mouseup mousemove mouseover mouseout mouseenter mouseleave '+
+  'change select keydown keypress keyup error').split(' ').forEach(function(event) {
+    $.fn[event] = function(callback) {
+      return (0 in arguments) ?
+        this.bind(event, callback) :
+        this.trigger(event)
+    }
+  })
+```
+在\$.fn上添加一些常用的事件方法, 若传入了callback, 则进行事件绑定, 否则触发事件.
